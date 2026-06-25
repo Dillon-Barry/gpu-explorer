@@ -26,7 +26,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>NVIDIA GPU Explorer — Interactive 3D</title>
 <style>
   :root{
@@ -59,7 +59,7 @@
   header .modepill{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--txt-dim);font-size:12px;}
   .kbd{font-family:var(--mono);font-size:11px;padding:2px 7px;border:1px solid var(--line-hi);border-radius:6px;color:var(--txt-dim);background:#0a1120;}
   /* ---------- Panels ---------- */
-  aside{overflow-y:auto;overflow-x:hidden;backdrop-filter:blur(8px);}
+  aside{overflow-y:auto;overflow-x:hidden;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   #left{grid-area:left;border-right:1px solid var(--line);background:var(--panel);}
   #right{grid-area:right;border-left:1px solid var(--line);background:var(--panel);}
   aside::-webkit-scrollbar{width:9px;} aside::-webkit-scrollbar-thumb{background:#1c2638;border-radius:8px;}
@@ -157,10 +157,16 @@
   /* ---------- Responsive (tablet) ---------- */
   @media(max-width:1100px){
     #app{grid-template-columns:1fr;grid-template-rows:52px 1fr;grid-template-areas:"head" "stage";}
-    #left,#right{position:absolute;top:52px;bottom:0;width:320px;z-index:40;transition:transform .25s;}
+    #left,#right{position:absolute;top:52px;bottom:0;width:min(320px,86vw);z-index:40;transition:transform .25s;}
     #left{left:0;transform:translateX(-101%);} #left.open{transform:none;}
     #right{right:0;transform:translateX(101%);} #right.open{transform:none;}
     .mobtog{display:inline-flex !important;}
+    /* keep the header on one tidy row; the pill/subtitle don't fit on phones */
+    header{gap:8px;padding:0 10px;}
+    header .modepill{display:none;}
+    .brand small{display:none;}
+    .brand{margin-right:auto;font-size:13px;line-height:1.1;}
+    #telemetry{display:none !important;}            /* re-shown by JS only on wider screens */
   }
   .mobtog{display:none;}
   /* ---------- Pipeline walkthrough ---------- */
@@ -192,7 +198,7 @@
   .bar i{display:block;height:100%;border-radius:4px;transition:width .3s ease-out;}
   #telemetry .illus{font-size:9px;color:var(--amber);margin-top:9px;line-height:1.4;}
   /* ---------- Modal overlays ---------- */
-  .modal{position:fixed;inset:0;background:#04060bcc;backdrop-filter:blur(4px);display:none;
+  .modal{position:fixed;inset:0;background:#04060bcc;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:none;
     align-items:center;justify-content:center;z-index:60;padding:24px;}
   .modal.open{display:flex;}
   .sheet{position:relative;background:linear-gradient(180deg,#0e1626,#0a1018);border:1px solid var(--line-hi);
@@ -220,6 +226,75 @@
   .keys{display:grid;grid-template-columns:1fr 1fr;gap:2px 22px;}
   .keys div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:6px 0;font-size:12.5px;color:var(--txt-dim);}
   @media(max-width:680px){ .gloss{columns:1;} .cmp{font-size:11.5px;} .keys{grid-template-columns:1fr;} }
+  /* ---------- Mode switch ---------- */
+  .modeswitch{display:flex;gap:2px;background:#0a1120;border:1px solid var(--line-hi);border-radius:10px;padding:3px;margin-left:18px;}
+  .msbtn{appearance:none;border:0;background:transparent;color:var(--txt-dim);font-size:12.5px;padding:5px 12px;border-radius:7px;cursor:pointer;transition:.15s;font-family:var(--font);}
+  .msbtn.on{background:linear-gradient(180deg,#1b3a5e,#15293f);color:#cfeeff;box-shadow:0 0 0 1px #2f6fa3 inset;}
+  /* ---------- Timeline mode (scroll-driven filmstrip) ---------- */
+  #tlInfo,#tlbar{display:none;}
+  body.tl #left,body.tl #right{display:none;}
+  body.tl .hud,body.tl #legend,body.tl #pipeline,body.tl #telemetry,body.tl #tourcard{display:none !important;}
+  body.tl #tlInfo{display:block;}
+  body.tl #tlbar{display:block;}
+  /* full-width history band across the top */
+  #tlInfo{position:absolute;left:0;right:0;top:0;z-index:16;pointer-events:auto;max-height:52%;overflow-y:auto;
+    background:linear-gradient(180deg,rgba(22,29,49,.96),rgba(12,17,30,.82));
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 14px 34px #0007;}
+  #tlInfo::-webkit-scrollbar{height:7px;width:7px;} #tlInfo::-webkit-scrollbar-thumb{background:#2a3650;border-radius:7px;}
+  #tlAccentBar{height:4px;}
+  #tlInner{display:flex;align-items:flex-start;gap:24px;padding:12px 26px 14px;flex-wrap:wrap;}
+  .tb-lead{flex:0 0 232px;min-width:200px;}
+  #tlBigYear{font-size:46px;font-weight:800;line-height:.92;letter-spacing:-1px;color:#fff;}   /* year in the corner of the box */
+  #tlKicker{font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:800;margin:6px 0 5px;}
+  #tlBadge{display:none;}
+  #tlTitle{margin:0 0 3px;font-size:20px;line-height:1.16;font-weight:800;color:#fff;letter-spacing:-.2px;}
+  #tlSub{font-size:12.5px;color:var(--txt-dim);}
+  .tb-mid{flex:1 1 300px;align-self:stretch;display:flex;flex-direction:column;justify-content:center;}
+  #tlBlurb{margin:0;font-size:14.5px;line-height:1.66;color:#eaf0fa;}
+  #tlContext{margin-top:10px;font-size:12.5px;line-height:1.5;color:#cdd9ef;display:flex;gap:8px;align-items:flex-start;font-style:italic;}
+  #tlContext .ic{font-style:normal;flex:0 0 auto;}
+  .tb-side{flex:0 0 290px;min-width:230px;display:flex;flex-direction:column;gap:9px;}
+  #tlKeyfacts{display:flex;gap:8px;}
+  .kf{flex:1;background:rgba(118,224,255,.09);border:1px solid rgba(118,224,255,.20);border-radius:11px;padding:8px 10px;}
+  .kf b{display:block;font-size:17px;font-weight:800;color:#fff;line-height:1.1;}
+  .kf span{font-size:9.5px;color:var(--txt-dim);letter-spacing:.2px;}
+  #tlFirst{font-size:12.5px;color:#ffe1a6;line-height:1.45;display:flex;gap:8px;align-items:flex-start;
+    background:rgba(255,207,107,.10);border:1px solid rgba(255,207,107,.30);border-radius:10px;padding:7px 11px;}
+  #tlSpecs{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-top:2px;}   /* always visible */
+  #tlSpecs .sp{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-top:1px dashed #243150;gap:8px;}
+  #tlSpecs .sp span:first-child{color:var(--txt-mute);white-space:nowrap;} #tlSpecs .sp span:last-child{color:var(--txt);text-align:right;font-family:var(--mono);font-size:10.5px;}
+  #tlModelCtl{display:flex;align-items:center;gap:8px;}
+  #tlModelCtl .row{margin:0;flex:1;} #tlModelCtl .row label{min-width:auto;}
+  @media(max-width:1100px){
+    .tb-lead,.tb-side,.tb-mid{flex-basis:100%;}
+    #tlBigYear{font-size:34px;} #tlSpecs{grid-template-columns:1fr 1fr;}
+  }
+  /* bottom dock: controls + filmstrip */
+  #tlbar{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#0a1018cc,#070b14fb);
+    border-top:1px solid var(--line);padding:8px 16px 14px;z-index:18;pointer-events:auto;}
+  .tlctrls{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  #tlYear{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent);min-width:46px;}
+  .tlhint{font-size:11px;color:var(--txt-mute);}
+  .tlfilters{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap;}
+  .tlf{font-size:10.5px;padding:3px 9px;border-radius:20px;border:1px solid var(--line-hi);cursor:pointer;color:var(--txt-mute);user-select:none;display:flex;align-items:center;gap:5px;}
+  .tlf.on{color:var(--txt);} .tlf i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .tlf.off{opacity:.4;text-decoration:line-through;}
+  #tlStrip{position:relative;overflow:hidden;height:128px;touch-action:pan-y;cursor:grab;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);}
+  #tlStrip.drag{cursor:grabbing;}
+  #tlStripInner{position:absolute;left:50%;top:6px;display:flex;gap:12px;transition:transform .35s cubic-bezier(.2,.7,.2,1);will-change:transform;}
+  .tlcard{flex:0 0 auto;width:128px;text-align:center;cursor:pointer;opacity:.5;transform:scale(.82);transition:.25s;filter:saturate(.7);}
+  .tlcard.on{opacity:1;transform:scale(1.06);filter:none;}
+  .tlcard canvas{display:block;width:128px;height:80px;border-radius:9px;border:1px solid var(--line);background:#070b14;}
+  .tlcard.on canvas{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 22px #000a;}
+  .tlcard .cy{font-family:var(--mono);font-size:11px;color:var(--accent);margin-top:5px;font-weight:700;}
+  .tlcard .cn{font-size:10px;color:var(--txt-dim);line-height:1.2;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #tlStripCenter{position:absolute;left:50%;top:0;bottom:30px;width:2px;background:linear-gradient(180deg,var(--accent),transparent);transform:translateX(-50%);opacity:.5;pointer-events:none;}
+  @media(max-width:1100px){
+    #tlInfo{width:min(290px,80vw);top:auto;bottom:188px;max-height:34vh;}
+    #tlBigYear{font-size:46px;} #tlHero{top:12px;left:14px;}
+    body.tl .mobtog{display:none !important;}
+  }
 </style>
 </head>
 <body>
@@ -230,6 +305,10 @@
   <header>
     <button class="btn sm mobtog" id="togLeft">☰ Controls</button>
     <div class="brand"><span class="dot"></span><div>GPU&nbsp;EXPLORER<br><small>Interactive 3D Architecture</small></div></div>
+    <div class="modeswitch" id="modeSwitch">
+      <button class="msbtn on" data-mode="inspector">🔍 Inspector</button>
+      <button class="msbtn" data-mode="timeline">🕑 Timeline</button>
+    </div>
     <div class="modepill">
       <span id="profName">—</span> · <span id="modeName">Idle</span>
     </div>
@@ -338,6 +417,40 @@
           <button class="btn sm primary" id="stageNext">Next stage ▶</button>
           <span class="sp" id="stageCount"></span>
         </div>
+      </div>
+
+      <!-- ===== TIMELINE MODE: full-width history band across the top ===== -->
+      <div id="tlInfo">
+        <div id="tlAccentBar"></div>
+        <div id="tlInner">
+          <div class="tb-lead">
+            <div id="tlBigYear">1993</div>
+            <div id="tlKicker"></div>
+            <h3 id="tlTitle"></h3>
+            <div id="tlSub"></div>
+          </div>
+          <div class="tb-mid">
+            <p id="tlBlurb"></p>
+            <div id="tlContext"></div>
+          </div>
+          <div class="tb-side">
+            <div id="tlKeyfacts"></div>
+            <div id="tlFirst"></div>
+            <div id="tlSpecs"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tlbar">
+        <div class="tlctrls">
+          <button class="btn sm" id="tlPrev">◀</button>
+          <button class="btn sm primary" id="tlPlay">▶ Play history</button>
+          <button class="btn sm" id="tlNext">▶</button>
+          <span id="tlYear">1993</span>
+          <div id="tlModelCtl"><div class="row"><label>Explode</label><input type="range" id="tlExplode" min="0" max="100" value="0"><span id="tlExplodeVal" class="valbadge">0%</span></div></div>
+          <div class="tlfilters" id="tlFilters"></div>
+        </div>
+        <div id="tlStrip"><div id="tlStripInner"></div><div id="tlStripCenter"></div></div>
       </div>
     </div>
     <div id="tip"></div>
@@ -737,13 +850,18 @@ const COMP = {
 ============================================================================ */
 const canvas = document.getElementById('c');
 const stage  = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+// Phones / tablets (and Safari on low-power GPUs) lose the WebGL context with big
+// shadow maps + high DPR. Detect a constrained device and lighten the load.
+const isMobile = matchMedia('(max-width:1100px), (pointer:coarse)').matches;
+const renderer = new THREE.WebGLRenderer({canvas, antialias:!isMobile, alpha:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile?1.5:2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.25;
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !isMobile;            // shadows off on mobile for stability
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Don't let a transient context loss leave a permanently black canvas.
+canvas.addEventListener('webglcontextlost', e=>{ e.preventDefault(); }, false);
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x05070d, 0.012);
@@ -1357,7 +1475,7 @@ let labelsVisible = true;
 function updateLabels(){
   const w=stage.clientWidth,h=stage.clientHeight;
   labelEls.forEach(el=>{
-    if(!labelsVisible || dieInternals.visible){ el.style.display='none'; return; }
+    if(!labelsVisible || dieInternals.visible || appMode==='timeline'){ el.style.display='none'; return; }
     const d=el._def;
     // find current world position from the part's group (account for explode offset)
     const ex = explodables.find(e=>e.obj.userData.cid===d.cid);
@@ -1554,6 +1672,7 @@ function pointer(e){
 function pickList(){ return dieInternals.visible? internalParts : parts; }
 
 renderer.domElement.addEventListener('pointermove',e=>{
+  if(appMode==='timeline'){ tip.style.opacity='0'; return; }
   pointer(e); ray.setFromCamera(mouse,camera);
   const hits=ray.intersectObjects(pickList(),true);
   const cid=hits.length? findCid(hits[0].object):null;
@@ -1567,6 +1686,7 @@ renderer.domElement.addEventListener('pointerdown',()=>{ renderer.domElement.sty
 let downXY=null;
 renderer.domElement.addEventListener('mousedown',e=>downXY=[e.clientX,e.clientY]);
 renderer.domElement.addEventListener('click',e=>{
+  if(appMode==='timeline') return;
   if(downXY && Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>5) return; // was a drag
   pointer(e); ray.setFromCamera(mouse,camera);
   const hits=ray.intersectObjects(pickList(),true);
@@ -2059,6 +2179,372 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ============================================================================
+   SECTION 13f · HISTORY TIMELINE  (scrubbable, with a per-era parametric card)
+   ----------------------------------------------------------------------------
+   Dates/specs are from public sources (see README); figures marked ~ are approx.
+============================================================================ */
+const TLMIN=1993, TLMAX=2025;
+// type colours
+const TLC={ corp:'#ffcf6b', gpu:'#76e0ff', arch:'#9d7bff', ai:'#5dffb0' };
+const TLLABEL={ corp:'Company', gpu:'GPU release', arch:'Architecture', ai:'AI / data-centre' };
+
+// TIMELINE — replaced/verified against research; see README sources.
+let TIMELINE=[
+  {year:1993, mon:4, type:'corp', title:'NVIDIA founded', blurb:'Jensen Huang, Chris Malachowsky and Curtis Priem found NVIDIA to build dedicated graphics chips for the emerging PC gaming market.'},
+  {year:1995, mon:5, type:'gpu', title:'NV1', blurb:'NVIDIA’s first product — a multimedia chip using quadratic surfaces instead of triangles. A commercial disappointment that nearly sank the company.', gpu:{name:'NV1',arch:'NV1',process:'500 nm',shaders:'fixed-function',vram:'1–4 MB EDO',tdp:'~5 W',first:'NVIDIA’s first chip'}},
+  {year:1997, mon:8, type:'gpu', title:'RIVA 128', blurb:'A triangle-based Direct3D accelerator that became NVIDIA’s first hit — launched with reportedly a month of payroll left — selling a million units in months and rescuing the company.', gpu:{name:'RIVA 128',arch:'NV3',process:'350 nm',shaders:'1 pixel pipeline',vram:'4 MB SGRAM',bus:'128-bit',tdp:'~5 W',first:'first commercial success (~3.5M transistors)'}},
+  {year:1999, mon:1, type:'corp', title:'IPO on NASDAQ', blurb:'NVIDIA goes public on NASDAQ under the ticker NVDA at $12/share.'},
+  {year:1999, mon:10, type:'gpu', title:'GeForce 256 — “the first GPU”', blurb:'Marketed as the world’s first GPU, it added hardware transform & lighting (T&L), offloading geometry from the CPU.', gpu:{name:'GeForce 256',arch:'NV10',process:'220 nm',shaders:'4 pixel pipelines',vram:'32 MB SDR/DDR',tdp:'~12 W',first:'first chip called a “GPU”'}},
+  {year:2000, mon:4, type:'gpu', title:'GeForce 2 GTS', blurb:'Faster T&L and fill rate; the GeForce 2 line pushed NVIDIA past 3dfx in performance.', gpu:{name:'GeForce 2 GTS',arch:'NV15',process:'180 nm',shaders:'4 pixel pipelines',vram:'32–64 MB DDR',tdp:'~10 W',first:'fill-rate leader'}},
+  {year:2000, mon:12, type:'corp', title:'NVIDIA acquires 3dfx', blurb:'NVIDIA buys the assets of struggling rival 3dfx, absorbing key graphics talent and patents.'},
+  {year:2001, mon:2, type:'gpu', title:'GeForce 3 — programmable shaders', blurb:'Introduced the first programmable pixel/vertex shaders (DirectX 8), the basis of all modern GPU compute.', gpu:{name:'GeForce 3',arch:'NV20',process:'150 nm',shaders:'first programmable shaders',vram:'64 MB DDR',tdp:'~15 W',first:'first programmable shader GPU'}},
+  {year:2003, mon:3, type:'gpu', title:'GeForce FX 5800 (“Dustbuster”)', blurb:'A hot, loud flagship that struggled against ATI’s Radeon 9700 — a rare NVIDIA stumble.', gpu:{name:'GeForce FX 5800 Ultra',arch:'NV30',process:'130 nm',shaders:'DirectX 9 (early)',vram:'128 MB GDDR2',tdp:'~75 W',first:'infamous loud cooler'}},
+  {year:2004, mon:4, type:'gpu', title:'GeForce 6800 Ultra + SLI returns', blurb:'Shader Model 3.0 and the revival of SLI multi-GPU; a strong return to form after the FX stumble.', gpu:{name:'GeForce 6800 Ultra',arch:'NV40',process:'130 nm',shaders:'16 pixel pipelines + 6 vertex',vram:'256 MB GDDR3',bus:'256-bit',tdp:'~100 W',msrp:'$499',first:'first NVIDIA GPU with Shader Model 3.0'}},
+  {year:2005, mon:6, type:'gpu', title:'GeForce 7800 GTX', blurb:'The G70 flagship launched as a native PCI Express part with improved SLI; the 90 nm 7900 GTX refresh followed in 2006.', gpu:{name:'GeForce 7800 GTX',arch:'G70',process:'110 nm',shaders:'24 pixel + 8 vertex pipelines',vram:'256 MB GDDR3',bus:'256-bit',tdp:'~80 W',msrp:'~$599',first:'native-PCIe flagship'}},
+  {year:2006, mon:11, type:'gpu', title:'GeForce 8800 GTX — unified shaders & CUDA', blurb:'A landmark: unified shader architecture (Tesla) and the launch of CUDA, opening the GPU to general-purpose computing.', gpu:{name:'GeForce 8800 GTX',arch:'Tesla (G80)',process:'90 nm',shaders:'128 CUDA cores',vram:'768 MB GDDR3',bus:'384-bit',tdp:'155 W',first:'first unified-shader / CUDA GPU'}},
+  {year:2007, mon:2, type:'ai', title:'CUDA platform released', blurb:'NVIDIA ships the CUDA SDK (Feb 15, 2007), letting developers run general-purpose computation on GPUs — the cornerstone of the later AI boom. The Tesla compute-card brand launches the same year.'},
+  {year:2008, mon:2, type:'corp', title:'Acquires Ageia (PhysX)', blurb:'NVIDIA buys Ageia and brings GPU-accelerated PhysX physics to GeForce.'},
+  {year:2008, mon:6, type:'gpu', title:'GeForce GTX 280', blurb:'A 1.4-billion-transistor flagship; the GTX brand becomes NVIDIA’s enthusiast line.', gpu:{name:'GeForce GTX 280',arch:'Tesla (GT200)',process:'65 nm',shaders:'240 CUDA cores',vram:'1 GB GDDR3',bus:'512-bit',tdp:'236 W',msrp:'$649',first:'first NVIDIA GPU over 1B transistors'}},
+  {year:2010, mon:3, type:'gpu', title:'GeForce GTX 480 — Fermi', blurb:'Fermi brought a major compute focus (caches, ECC) but ran hot and power-hungry, earning the “Thermi” nickname.', gpu:{name:'GeForce GTX 480',arch:'Fermi (GF100)',process:'40 nm',shaders:'480 CUDA cores',vram:'1.5 GB GDDR5',bus:'384-bit',tdp:'250 W',first:'first Fermi GPU'}},
+  {year:2012, mon:3, type:'gpu', title:'GeForce GTX 680 — Kepler', blurb:'Kepler pivoted to efficiency, retaking the performance-per-watt crown.', gpu:{name:'GeForce GTX 680',arch:'Kepler (GK104)',process:'28 nm',shaders:'1,536 CUDA cores',vram:'2 GB GDDR5',bus:'256-bit',tdp:'195 W',first:'efficiency turnaround'}},
+  {year:2013, mon:2, type:'gpu', title:'GeForce GTX Titan', blurb:'The first “Titan” — a prosumer card pairing big Kepler compute with gaming, starting the ultra-premium tier.', gpu:{name:'GeForce GTX Titan',arch:'Kepler (GK110)',process:'28 nm',shaders:'2,688 CUDA cores',vram:'6 GB GDDR5',bus:'384-bit',tdp:'250 W',first:'first Titan'}},
+  {year:2014, mon:9, type:'gpu', title:'GeForce GTX 980 — Maxwell', blurb:'Maxwell delivered big efficiency gains and powered NVIDIA’s dominance through the mid-2010s.', gpu:{name:'GeForce GTX 980',arch:'Maxwell (GM204)',process:'28 nm',shaders:'2,048 CUDA cores',vram:'4 GB GDDR5',bus:'256-bit',tdp:'165 W',msrp:'$549',first:'first GeForce with HDMI 2.0'}},
+  {year:2016, mon:5, type:'gpu', title:'GeForce GTX 1080 — Pascal', blurb:'A huge generational leap on 16 nm FinFET with GDDR5X; the 10-series became one of NVIDIA’s most beloved.', gpu:{name:'GeForce GTX 1080',arch:'Pascal (GP104)',process:'16 nm',shaders:'2,560 CUDA cores',vram:'8 GB GDDR5X',bus:'256-bit',tdp:'180 W',msrp:'$599',first:'first 16 nm GeForce'}},
+  {year:2017, mon:12, type:'ai', title:'Titan V — Volta & Tensor Cores', blurb:'Volta introduced Tensor Cores for deep-learning matrix math, igniting NVIDIA’s data-centre AI business.', gpu:{name:'Titan V',arch:'Volta (GV100)',process:'12 nm',shaders:'5,120 CUDA + 640 Tensor',vram:'12 GB HBM2',bus:'3072-bit',tdp:'250 W',first:'first Tensor Cores'}},
+  {year:2018, mon:9, type:'gpu', title:'GeForce RTX 2080 — Turing & RTX', blurb:'Turing added RT Cores for real-time ray tracing and Tensor Cores for DLSS — the birth of the “RTX” era.', gpu:{name:'GeForce RTX 2080',arch:'Turing (TU104)',process:'12 nm',shaders:'2,944 CUDA + RT + Tensor',vram:'8 GB GDDR6',bus:'256-bit',tdp:'215 W',msrp:'$699',first:'first consumer ray-tracing GPU'}},
+  {year:2020, mon:4, type:'corp', title:'Acquires Mellanox', blurb:'A ~$7B acquisition of high-speed networking firm Mellanox — key plumbing for AI data centres.'},
+  {year:2020, mon:5, type:'ai', title:'A100 — Ampere data-centre', blurb:'The A100 became the workhorse of the generative-AI revolution, training many of the era’s large models.', gpu:{name:'A100',arch:'Ampere (GA100)',process:'7 nm',shaders:'6,912 CUDA + 432 Tensor',vram:'40–80 GB HBM2e',bus:'5120-bit',tdp:'400 W',first:'AI-boom workhorse'}},
+  {year:2020, mon:9, type:'gpu', title:'GeForce RTX 3080 — Ampere', blurb:'A big rasterisation and ray-tracing jump at $699; demand massively outstripped supply during the pandemic/crypto era.', gpu:{name:'GeForce RTX 3080',arch:'Ampere (GA102)',process:'8 nm',shaders:'8,704 CUDA cores',vram:'10 GB GDDR6X',bus:'320-bit',tdp:'320 W',msrp:'$699',first:'GDDR6X debut'}},
+  {year:2022, mon:2, type:'corp', title:'ARM acquisition abandoned', blurb:'NVIDIA’s ~$40B bid for Arm collapses under regulatory pressure — one of the largest failed chip deals ever.'},
+  {year:2022, mon:3, type:'ai', title:'H100 — Hopper', blurb:'Hopper with the Transformer Engine became the most sought-after AI chip on Earth, defining the LLM boom.', gpu:{name:'H100',arch:'Hopper (GH100)',process:'4 nm',shaders:'~16,896 CUDA + Tensor',vram:'80 GB HBM3',bus:'5120-bit',tdp:'700 W',first:'Transformer Engine'}},
+  {year:2022, mon:10, type:'gpu', title:'GeForce RTX 4090 — Ada Lovelace', blurb:'A massive Ada flagship with DLSS 3 frame generation and the first 16-pin 12VHPWR connector.', gpu:{name:'GeForce RTX 4090',arch:'Ada Lovelace (AD102)',process:'4 nm',shaders:'16,384 CUDA cores',vram:'24 GB GDDR6X',bus:'384-bit',tdp:'450 W',msrp:'$1,599',first:'DLSS 3 / 12VHPWR'}},
+  {year:2023, mon:5, type:'ai', title:'AI boom → $1 trillion', blurb:'Generative-AI demand for H100s sends revenue soaring; NVIDIA briefly joins the $1 trillion market-cap club.'},
+  {year:2024, mon:3, type:'ai', title:'B200 — Blackwell', blurb:'A dual-die, 208-billion-transistor accelerator joined by a 10 TB/s NV-HBI link — the new standard for frontier AI.', gpu:{name:'B200',arch:'Blackwell (GB100)',process:'4NP',shaders:'2 dies + Tensor',vram:'180 GB HBM3e',bus:'8192-bit',tdp:'~1000 W',first:'dual-die AI GPU'}},
+  {year:2024, mon:6, type:'corp', title:'$3 trillion market cap', blurb:'NVIDIA briefly becomes the world’s most valuable company, surpassing $3T as AI demand explodes.'},
+  {year:2025, mon:1, type:'gpu', title:'GeForce RTX 5090 — Blackwell', blurb:'The flagship consumer Blackwell: 32 GB GDDR7 on a 512-bit bus, with a compact 2-slot double-flow-through Founders Edition.', gpu:{name:'GeForce RTX 5090',arch:'Blackwell (GB202)',process:'4N',shaders:'21,760 CUDA cores',vram:'32 GB GDDR7',bus:'512-bit',tdp:'575 W',msrp:'$1,999',first:'GDDR7 + DLSS 4'}},
+  // additional milestones surfaced by research (array auto-sorts by date)
+  {year:2012, mon:9, type:'ai', title:'AlexNet ignites deep learning', blurb:'AlexNet wins the 2012 ImageNet contest by a wide margin — trained on two GeForce GTX 580s with CUDA — establishing NVIDIA GPUs as the substrate of modern AI.'},
+  {year:2016, mon:4, type:'ai', title:'DGX-1 — first AI supercomputer', blurb:'NVIDIA unveils the DGX-1, eight Tesla P100s in a box billed as the “world’s first deep-learning supercomputer.” Jensen Huang hand-delivers the first unit to OpenAI.'},
+  {year:2017, mon:5, type:'arch', title:'Volta + Tensor Cores', blurb:'The Volta architecture and Tesla V100 introduce Tensor Cores — dedicated mixed-precision matrix-math units — delivering a step-change in deep-learning training and becoming a permanent fixture of every later NVIDIA GPU.'},
+  {year:2020, mon:9, type:'corp', title:'ARM acquisition announced', blurb:'NVIDIA agrees to buy Arm from SoftBank for ~$40B — what would have been the largest chip deal in history. It immediately draws heavy regulatory scrutiny.'},
+  {year:2022, mon:11, type:'ai', title:'ChatGPT triggers the AI gold rush', blurb:'ChatGPT’s launch sets off explosive demand for H100 and A100 GPUs; NVIDIA’s data-centre revenue would surge over 400% year-over-year, capturing the dominant share of the AI-accelerator market.'},
+  {year:2024, mon:2, type:'corp', title:'$2 trillion market cap', blurb:'NVIDIA’s valuation reaches $2 trillion in late February 2024 on record data-centre earnings.'},
+  {year:2025, mon:7, type:'corp', title:'$4 trillion — a historic first', blurb:'NVIDIA becomes the first company ever to reach a $4 trillion valuation, cementing its place as the world’s most valuable company on sustained AI demand.'}
+];
+TIMELINE.forEach(e=> e.t = e.year + ((e.mon||6)-1)/12 );
+TIMELINE.sort((a,b)=>a.t-b.t);
+
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/* ---- per-card visual identity (distinct colours / cooler per generation) ----
+   To use REAL photos instead of the procedural portrait, drop a licensed/owned
+   image at cards/<key>.png|jpg and add `img:'cards/<key>.png'` to that entry. */
+function tlStyle(e){
+  const n=(e.gpu&&e.gpu.name)||e.title;
+  // accurate per-card reference / Founders-Edition looks (cooler type, fan layout, colours)
+  const base={cool:'blower', shroud:'#1a1d24', pcb:'#0a3326', accent:'#76b900', slots:2, lenF:0.7,
+              lit:null, exposed:false, poly:false, dc:null, dualdie:false};
+  const M=[
+    [/NV1/,         {cool:'bare', shroud:'#0a3a24', pcb:'#0a3a24', accent:'#3fd07a', slots:1, lenF:0.55}],
+    [/RIVA 128/,    {cool:'bare', shroud:'#0a3a24', pcb:'#0a3a24', accent:'#3fd07a', slots:1, lenF:0.45}],
+    [/GeForce 256/, {cool:'fan1', shroud:'#0a3a24', pcb:'#0a3a24', accent:'#3fd07a', slots:1, lenF:0.52}],
+    [/GeForce 2 /,  {cool:'fan1', shroud:'#0a3a24', pcb:'#0a3a24', accent:'#3fd07a', slots:1, lenF:0.54}],
+    [/GeForce 3/,   {cool:'fan1', shroud:'#0a3a24', pcb:'#0a3a24', accent:'#4aa3ff', slots:1, lenF:0.56}],
+    [/FX 5800/,     {cool:'blower', shroud:'#878d95', pcb:'#15161c', accent:'#c47a3a', slots:2, lenF:0.72}], // Dustbuster
+    [/6800/,        {cool:'blower', shroud:'#43474e', pcb:'#0a3a24', accent:'#9aa6b8', slots:2, lenF:0.80}],
+    [/7800/,        {cool:'blower', shroud:'#2b2e34', pcb:'#0a3a24', accent:'#9aa6b8', slots:1, lenF:0.84}], // single-slot
+    [/8800/,        {cool:'blower', shroud:'#0e0f13', pcb:'#0a0b0e', accent:'#9aa6b8', slots:2, lenF:0.94}], // long black slab
+    [/GTX 280/,     {cool:'blower', shroud:'#101216', pcb:'#0a0b0e', accent:'#9aa6b8', slots:2, lenF:0.92}],
+    [/GTX 480/,     {cool:'blower', exposed:true, shroud:'#1a1c20', pcb:'#0a0b0e', accent:'#76b900', slots:2, lenF:0.90}], // exposed heatpipes
+    [/GTX 680/,     {cool:'blower', shroud:'#1b1d22', pcb:'#0a0b0e', accent:'#9fb1c7', lit:'#86d000', slots:2, lenF:0.80}],
+    [/GTX Titan/i,  {cool:'blower', shroud:'#9aa0a8', pcb:'#0c0d10', accent:'#86d000', lit:'#86d000', slots:2, lenF:0.84}], // brushed silver + lit logo
+    [/GTX 980/,     {cool:'blower', shroud:'#3a3d44', pcb:'#0c0d10', accent:'#86d000', lit:'#86d000', slots:2, lenF:0.82}],
+    [/1080/,        {cool:'blower', poly:true, shroud:'#b9c2cc', pcb:'#0c0d10', accent:'#7cff3a', lit:'#86d000', slots:2, lenF:0.82}], // faceted silver FE
+    [/Titan V/,     {cool:'blower', shroud:'#c8a24a', pcb:'#0c0d10', accent:'#86d000', lit:'#86d000', slots:2, lenF:0.84}], // gold
+    [/2080/,        {cool:'axial2', shroud:'#2a2e34', pcb:'#0c0d10', accent:'#9aa6b8', lit:'#eef3fb', slots:2, lenF:0.86}], // first dual-axial
+    [/A100/,        {cool:'passive', dc:'pcie', shroud:'#c8a24a', pcb:'#0d0b07', accent:'#e6b94e', slots:2, lenF:0.94}], // gold passive
+    [/3080|3090/,   {cool:'flow', shroud:'#23272e', pcb:'#0c0d10', accent:'#86d000', lit:'#eef3fb', slots:2, lenF:0.90}], // flow-through
+    [/H100/,        {cool:'passive', dc:'pcie', shroud:'#c8a24a', pcb:'#0d0b07', accent:'#e6b94e', slots:2, lenF:0.94}],
+    [/4090/,        {cool:'flow', shroud:'#1d2127', pcb:'#0c0d10', accent:'#86d000', lit:'#eef3fb', slots:3, lenF:1.00}], // 3-slot
+    [/B200/,        {cool:'passive', dc:'sxm', shroud:'#b0743a', pcb:'#0e0b07', accent:'#e6b94e', slots:2, lenF:0.82, dualdie:true}], // copper SXM
+    [/5090/,        {cool:'flow', shroud:'#15191f', pcb:'#0c0d10', accent:'#86d000', lit:'#eef3fb', slots:2, lenF:0.92}]
+  ];
+  for(const [re,ov] of M){ if(re.test(n)) return Object.assign({},base,ov); }
+  return base;
+}
+
+/* ---- parametric, per-card 3D model ---- */
+const tlGroup=new THREE.Group(); tlGroup.visible=false; scene.add(tlGroup);
+let tlExpl=[], tlExplodeAmt=0, tlIntro=1, tlCurGpuTitle=null;
+function tlAdd(obj,dir){ tlGroup.add(obj); if(dir) tlExpl.push({obj,base:obj.position.clone(),dir}); }
+function tlFan(x,r,blades){ const fg=new THREE.Group();
+  fg.add(new THREE.Mesh(new THREE.TorusGeometry(r,0.06,10,28),MAT.fanHub));
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.08,16),MAT.fanHub); hub.rotation.x=Math.PI/2; fg.add(hub);
+  const bl=new THREE.Group(); for(let b=0;b<9;b++){ const v=new THREE.Mesh(new THREE.BoxGeometry(r*0.85,0.12,0.02),MAT.fan); v.position.x=r*0.5; v.rotation.z=0.4; const h=new THREE.Group(); h.rotation.z=b*(Math.PI*2/9); h.add(v); bl.add(h);} fg.add(bl); blades.push(bl);
+  fg.position.set(x,0,0.88); return fg; }
+function buildEraModel(e){
+  while(tlGroup.children.length) tlGroup.remove(tlGroup.children[0]);
+  tlExpl=[];
+  const y=e.year, s=tlStyle(e), dc=s.dc, sxm=(s.dc==='sxm'), open=(s.cool==='bare'||s.cool==='fan1');
+  const L = 2.6 + s.lenF*4.0, H = y<2010?2.0:2.5, hw=L/2, px=-hw*0.12;
+  const conn = dc?'none' : y<2004?'none' : y<2008?'molex' : y<2016?'8pin' : y<2022?'2x8' : '12vhpwr';
+  const vcount = dc?8 : y<2004?2 : y<2010?4 : y<2016?8 : 12;
+  const sli=(!dc && y>=2004 && y<2018), nvlink=(dc||/4090|5090|3090|2080/.test(e.gpu&&e.gpu.name||''));
+  const shroudMat=new THREE.MeshStandardMaterial({color:new THREE.Color(s.shroud),metalness:.72,roughness:s.poly?.32:.45,envMapIntensity:1.25});
+  const accentMat=new THREE.MeshStandardMaterial({color:new THREE.Color(s.lit||s.accent),emissive:new THREE.Color(s.lit||s.accent),emissiveIntensity:s.lit?1.1:.6,metalness:.5,roughness:.4});
+  const pcbMat=new THREE.MeshStandardMaterial({color:new THREE.Color(s.pcb),metalness:.3,roughness:.7,envMapIntensity:1});
+  if(s.cool==='axial2'||s.cool==='flow'){ const bp=new THREE.Mesh(new THREE.BoxGeometry(L+0.1,H+0.1,0.06),MAT.backplate); bp.position.z=-0.32; tlAdd(bp,new THREE.Vector3(0,0,-1.2)); }
+  const pcb=new THREE.Mesh(new THREE.BoxGeometry(L,H,0.12),pcbMat); tlAdd(pcb,new THREE.Vector3(0,0,-0.5));
+  const pkg=new THREE.Mesh(new THREE.BoxGeometry(dc?2.0:1.1,dc?1.5:1.1,0.14),MAT.pkg); pkg.position.set(px,0,0.14); tlAdd(pkg,new THREE.Vector3(0,0,0.8));
+  (s.dualdie?[-0.5,0.5]:[0]).forEach(dx=>{ const die=new THREE.Mesh(new THREE.BoxGeometry(dc?0.8:0.7,dc?1.0:0.7,0.08),MAT.die); die.position.set(px+dx,0,0.24); tlAdd(die,new THREE.Vector3(0,0,1.3)); });
+  const vg=new THREE.Group(); const vmat=dc?MAT.vramHbm:MAT.vram; for(let i=0;i<vcount;i++){ const a=i/vcount*Math.PI*2;
+    const v=new THREE.Mesh(new THREE.BoxGeometry(dc?0.5:0.32,dc?0.5:0.28,dc?0.18:0.1),vmat); v.position.set(px+Math.cos(a)*(dc?1.0:1.05), Math.sin(a)*(H*0.32), 0.14); vg.add(v);} tlAdd(vg,new THREE.Vector3(0,0,0.6));
+  const vrm=new THREE.Group(); for(let i=0;i<5;i++){ const c=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.22,0.18),MAT.choke); c.position.set(hw-0.4,-H*0.3+i*(H*0.6/4),0.16); vrm.add(c);} tlAdd(vrm,new THREE.Vector3(0.7,0,0.5));
+  if(conn!=='none'){ const w={molex:0.5,'8pin':0.7,'2x8':1.3,'12vhpwr':0.9}[conn];
+    const pc=new THREE.Mesh(new THREE.BoxGeometry(w,0.28,0.34),MAT.port); pc.position.set(hw-1.0,H/2-0.02,0.2); tlAdd(pc,new THREE.Vector3(0.3,1.2,0.3)); }
+  if(!sxm){ const pcie=new THREE.Group(); const bar=new THREE.Mesh(new THREE.BoxGeometry(L*0.5,0.4,0.1),MAT.pkg); bar.position.set(px,-H/2-0.18,0); pcie.add(bar);
+    for(let i=0;i<26;i++){ const f=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.32,0.11),MAT.gold); f.position.set(px-L*0.22+i*(L*0.44/25),-H/2-0.2,0.01); pcie.add(f);} tlAdd(pcie,new THREE.Vector3(0,-1.2,0)); }
+  if(!dc){ const io=new THREE.Group();
+    const iobr=new THREE.Mesh(new THREE.BoxGeometry(0.14,H+0.2,0.9),MAT.shroudTrim); iobr.position.set(-hw-0.08,0,0.25); io.add(iobr);
+    const ports=y<2004?1:y<2014?2:4; for(let i=0;i<ports;i++){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.34,0.4),MAT.port); p.position.set(-hw-0.1,(ports-1)*0.25-i*0.5,0.25); io.add(p);} tlAdd(io,new THREE.Vector3(-1.2,0,0.2)); }
+  if(sli||nvlink){ const f=new THREE.Mesh(new THREE.BoxGeometry(nvlink?1.6:0.9,0.2,0.4), nvlink?MAT.nvlink:MAT.shroudTrim); f.position.set(px,H/2,0.16); tlAdd(f,new THREE.Vector3(0,1.4,0.3)); }
+
+  const cooler=new THREE.Group(); cooler.userData.blades=[];
+  if(open){
+    // early card: small heatsink on the GPU, exposed green PCB, no shroud
+    const hsk=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.3,0.2),MAT.heatsink); hsk.position.set(px,0,0.42); tlAdd(hsk,new THREE.Vector3(0,0,1.0));
+    if(s.cool==='fan1') cooler.add(tlFan(px,0.55,cooler.userData.blades));
+  } else {
+    const thick=0.12+(s.slots-2)*0.06;
+    const finsMat = dc ? new THREE.MeshStandardMaterial({color:new THREE.Color(sxm?s.shroud:s.accent),metalness:.85,roughness:.32,envMapIntensity:1.3}) : MAT.heatsink;
+    const hs=new THREE.Group(); for(let i=0;i<12;i++){ const fin=new THREE.Mesh(new THREE.BoxGeometry(L-0.3,H-0.2,0.03),finsMat); fin.position.set(0,0,0.42+i*0.03); hs.add(fin);} tlAdd(hs,new THREE.Vector3(0,0,0.9));
+    const hole=(x,r,z)=>{ const o=new THREE.Mesh(new THREE.RingGeometry(r*0.92,r*1.12,30),new THREE.MeshBasicMaterial({color:0,side:THREE.DoubleSide})); o.position.set(x,0,z); cooler.add(o); };
+    if(dc){
+      if(sxm){ const lid=new THREE.Mesh(new THREE.BoxGeometry(L+0.1,H+0.1,0.1),shroudMat); lid.position.set(0,0,0.9); cooler.add(lid); } // copper cold-plate lid
+      else { [-hw+0.05,hw-0.05].forEach(cx=>{ const cap=new THREE.Mesh(new THREE.BoxGeometry(0.32,H+0.2,thick+0.18),MAT.backplate); cap.position.set(cx,0,0.86); cooler.add(cap); }); } // gold fins + black end-caps
+    } else {
+      const cfr=new THREE.Mesh(new THREE.BoxGeometry(L+0.2,H+0.2,thick),shroudMat); cfr.position.set(0,0,0.85); cooler.add(cfr);
+      if(s.cool==='axial2'){ const r=Math.min(H*0.4,L*0.2); [-L*0.18,L*0.18].forEach(x=>{ cooler.add(tlFan(x,r,cooler.userData.blades)); hole(x,r,0.93); }); }
+      else if(s.cool==='flow'){ const r=Math.min(H*0.42,L*0.22);
+        cooler.add(tlFan(L*0.2,r,cooler.userData.blades)); hole(L*0.2,r,0.93);                              // front fan, one end
+        const fb=tlFan(-L*0.2,r,cooler.userData.blades); fb.position.z=-0.55; cooler.add(fb); hole(-L*0.2,r,-0.4); } // rear fan, opposite end + face
+      else if(s.cool==='blower'){ const r=H*0.4; cooler.add(tlFan(hw-0.7,r,cooler.userData.blades)); hole(hw-0.7,r,0.93);
+        if(s.exposed){ for(let i=0;i<4;i++){ const hp=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,L-0.5,10),new THREE.MeshStandardMaterial({color:0xc0c8d0,metalness:.95,roughness:.2})); hp.rotation.z=Math.PI/2; hp.position.set(0,H/2+0.04,0.72+i*0.07); cooler.add(hp); } } }
+    }
+    // lit top-edge logo / accent stripe (consumer cards)
+    if(!dc){ const stripe=new THREE.Mesh(new THREE.BoxGeometry(L+0.22,0.08,0.16),accentMat); stripe.position.set(0,H/2+0.12,0.85); cooler.add(stripe); }
+  }
+  tlAdd(cooler,new THREE.Vector3(0,0,1.7));
+  tlGroup.userData.cooler=cooler;
+  tlGroup.position.set(0,0.4,0);
+  enableShadows(tlGroup);
+  tlIntro=0;
+}
+
+/* ---- procedural card portraits (filmstrip thumbnails) ---- */
+function drawProc(g,e,W,H){
+  g.clearRect(0,0,W,H);
+  g.fillStyle='#070b14'; g.fillRect(0,0,W,H);
+  if(!e.gpu){ // milestone glyph
+    const c=TLC[e.type]; g.fillStyle=c+'1c'; g.fillRect(0,0,W,H);
+    g.strokeStyle=c; g.lineWidth=3; g.globalAlpha=.9;
+    const cx=W/2, cy=H/2-4;
+    if(e.type==='corp'){ for(let i=0;i<4;i++){ g.fillStyle=c; g.fillRect(cx-34+i*20, cy+18-(i*9+8), 13, i*9+10); } }
+    else if(e.type==='ai'){ const pts=[[cx-26,cy-10],[cx,cy-22],[cx+26,cy-6],[cx-10,cy+18],[cx+18,cy+16]]; g.strokeStyle=c;
+      pts.forEach(p=>pts.forEach(q=>{ g.beginPath(); g.moveTo(p[0],p[1]); g.lineTo(q[0],q[1]); g.stroke(); })); pts.forEach(p=>{ g.fillStyle=c; g.beginPath(); g.arc(p[0],p[1],4,0,7); g.fill(); }); }
+    else { for(let i=3;i>=0;i--){ g.fillStyle=c+(['','cc','99','55'][i]); g.fillRect(cx-22+i*5, cy-18+i*9, 44-i*10, 12); } }
+    g.globalAlpha=1; return;
+  }
+  const s=tlStyle(e), dc=s.dc, open=(s.cool==='bare'||s.cool==='fan1');
+  const cw=(W-44)*(0.5+s.lenF*0.46), x0=(W-cw)/2, ch=H*0.5, y0=H/2-ch/2, cy=y0+ch/2;
+  g.fillStyle=s.pcb; g.fillRect(x0-3,y0-3,cw+6,ch+6);   // PCB
+  const fan=(fx,r,col)=>{ g.beginPath(); g.arc(fx,cy,r,0,7); g.fillStyle='#05070c'; g.fill();
+    g.strokeStyle=(col||s.accent)+'aa'; g.lineWidth=1.5; g.stroke();
+    g.strokeStyle='#1a2233'; for(let a=0;a<9;a++){ g.beginPath(); g.moveTo(fx,cy); g.lineTo(fx+Math.cos(a/9*6.28)*r*0.9, cy+Math.sin(a/9*6.28)*r*0.9); g.stroke(); }
+    g.fillStyle=(col||s.accent); g.beginPath(); g.arc(fx,cy,r*0.16,0,7); g.fill(); };
+  const r=Math.min(ch*0.38, cw*0.2);
+  if(open){
+    g.fillStyle='#1c2330'; g.fillRect(x0+cw*0.38,y0+ch*0.2,cw*0.24,ch*0.6);                 // chip heatsink
+    g.fillStyle='#0c0d11'; for(let i=0;i<6;i++) g.fillRect(x0+6+i*((cw-12)/6),y0+ch-9,(cw-12)/6-4,6); // memory
+    if(s.cool==='fan1') fan(x0+cw*0.5,Math.min(ch*0.22,cw*0.11),'#9aa6b8');
+  } else {
+    g.fillStyle=s.shroud; g.strokeStyle='#0007'; g.lineWidth=1; g.fillRect(x0,y0,cw,ch); g.strokeRect(x0+.5,y0+.5,cw-1,ch-1);
+    if(s.poly){ g.strokeStyle='#ffffff22'; g.lineWidth=1; for(let i=-1;i<6;i++){ g.beginPath(); g.moveTo(x0+i*cw/5,y0); g.lineTo(x0+i*cw/5+ch,y0+ch); g.stroke(); } }
+    if(dc){
+      g.strokeStyle=(s.dc==='sxm'?'#6a4420':'#6a5212'); g.lineWidth=1; for(let i=0;i<16;i++){ const fx=x0+6+i*((cw-12)/15); g.beginPath(); g.moveTo(fx,y0+3); g.lineTo(fx,y0+ch-3); g.stroke(); }
+      g.fillStyle=s.accent; g.globalAlpha=.45; g.fillRect(x0,y0,cw,ch); g.globalAlpha=1;
+      g.fillStyle=s.pcb; g.fillRect(x0+cw/2-(s.dualdie?22:12),cy-12,s.dualdie?44:24,24);     // package (dual-die wider)
+    }
+    else if(s.cool==='axial2'){ fan(x0+cw*0.34,r); fan(x0+cw*0.66,r); }                       // two centred fans
+    else if(s.cool==='flow'){ fan(x0+cw*0.26,r);                                              // front fan + open fin window (rear fan on back)
+      g.strokeStyle='#2a3340'; g.lineWidth=1; for(let i=0;i<7;i++){ const fx=x0+cw*0.56+i*((cw*0.4)/7); g.beginPath(); g.moveTo(fx,y0+4); g.lineTo(fx,y0+ch-4); g.stroke(); }
+      g.strokeStyle=s.accent+'55'; g.strokeRect(x0+cw*0.54,y0+3,cw*0.42,ch-6); }
+    else if(s.cool==='blower'){ g.strokeStyle='#222'; for(let i=0;i<7;i++){ const fx=x0+6+i*((cw*0.5)/7); g.beginPath(); g.moveTo(fx,y0+4); g.lineTo(fx,y0+ch-4); g.stroke(); }
+      fan(x0+cw*0.76,r);                                                                       // single rear blower
+      if(s.exposed){ g.strokeStyle='#c0c8d0'; g.lineWidth=2; for(let i=0;i<4;i++){ g.beginPath(); g.moveTo(x0+4,y0+2+i*2); g.lineTo(x0+cw-4,y0+2+i*2); g.stroke(); } } }
+    g.fillStyle=s.lit||s.accent; g.fillRect(x0,y0-2,cw,s.lit?3:2);                              // top-edge logo
+  }
+  if(!dc){ g.fillStyle='#3a4660'; g.fillRect(x0-6,y0-4,5,ch+8); }                              // I/O bracket
+}
+function makeCardCanvas(e){ const c=document.createElement('canvas'); c.width=256; c.height=160; const g=c.getContext('2d');
+  if(e.img){ const im=new Image(); im.onload=()=>{ const r=Math.max(c.width/im.width,c.height/im.height),w=im.width*r,h=im.height*r; g.clearRect(0,0,c.width,c.height); g.drawImage(im,(c.width-w)/2,(c.height-h)/2,w,h); }; im.onerror=()=>drawProc(g,e,c.width,c.height); im.src=e.img; }
+  else drawProc(g,e,c.width,c.height);
+  return c; }
+
+/* ---- filmstrip navigation ---- */
+let tlIdx=0, tlPlaying=false, tlPlayT=0, tlFilters={corp:true,gpu:true,arch:true,ai:true};
+const stripInner=document.getElementById('tlStripInner');
+function tlVisible(e){ return tlFilters[e.type]; }
+function buildFilmstrip(){
+  stripInner.innerHTML='';
+  TIMELINE.forEach((e,i)=>{ const card=document.createElement('div'); card.className='tlcard'; card._i=i;
+    card.appendChild(makeCardCanvas(e));
+    const yr=document.createElement('div'); yr.className='cy'; yr.textContent=e.year; card.appendChild(yr);
+    const nm=document.createElement('div'); nm.className='cn'; nm.textContent=(e.gpu&&e.gpu.name)||e.title; card.appendChild(nm);
+    card.onclick=()=>setActive(i,true);
+    stripInner.appendChild(card); });
+  // filters
+  const fl=document.getElementById('tlFilters'); fl.innerHTML='';
+  Object.keys(TLLABEL).forEach(k=>{ const f=document.createElement('div'); f.className='tlf on'; f.innerHTML='<i style="background:'+TLC[k]+'"></i>'+TLLABEL[k];
+    f.onclick=()=>{ tlFilters[k]=!tlFilters[k]; f.classList.toggle('off',!tlFilters[k]); f.classList.toggle('on',tlFilters[k]);
+      [...stripInner.children].forEach(c=>{ c.style.display=tlVisible(TIMELINE[c._i])?'block':'none'; });
+      if(!tlVisible(TIMELINE[tlIdx])) setActive(nearestVisible(tlIdx),true); else centerStrip(true); }; fl.appendChild(f); });
+}
+function nearestVisible(i){ for(let d=0;d<TIMELINE.length;d++){ if(TIMELINE[i+d]&&tlVisible(TIMELINE[i+d])) return i+d; if(TIMELINE[i-d]&&tlVisible(TIMELINE[i-d])) return i-d; } return i; }
+function centerStrip(anim){ const card=stripInner.children[tlIdx]; if(!card) return;
+  stripInner.style.transition = anim?'':'none';
+  const tx = -(card.offsetLeft + card.offsetWidth/2);
+  stripInner.style.transform='translateX('+tx+'px)';
+  if(!anim) stripInner.offsetHeight, stripInner.style.transition=''; }
+function lastGpuUpTo(idx){ let g=null; for(let i=0;i<=idx;i++){ if(TIMELINE[i].gpu) g=TIMELINE[i]; } return g; }
+// "what else was happening" cultural context, keyed by year (per-entry e.ctx overrides)
+const CTX={
+  1993:['🌐','The year DOOM kicked off the 3D-shooter craze and the web went public.'],
+  1995:['🎮','The Windows 95 era — the original PlayStation had just landed.'],
+  1997:['💿','Around the launch of Quake II and the first DVD players.'],
+  1999:['🕹️','The same season as Quake III Arena and Unreal Tournament.'],
+  2000:['🧩','The Sims and the original Counter-Strike were taking over PCs.'],
+  2001:['🎯','Powered the original Xbox — the year of Halo: Combat Evolved.'],
+  2003:['🔫','Counter-Strike 1.6 had just dropped; Half-Life 2 was on the horizon.'],
+  2004:['🚀','Launched alongside Half-Life 2, Doom 3 and Far Cry.'],
+  2005:['🎲','The Xbox 360 generation was just beginning.'],
+  2006:['💥','Arrived with the PlayStation 3 — a year before Crysis melted PCs.'],
+  2007:['📱','The same year the first iPhone shipped.'],
+  2008:['🌆','GTA IV had just landed and "but can it run Crysis?" was everywhere.'],
+  2010:['🐉','The year of StarCraft II and the original iPad.'],
+  2012:['⚔️','Diablo III and Skyrim ruled PC gaming.'],
+  2013:['🎮','Around the launch of the PlayStation 4 and Xbox One.'],
+  2014:['🗡️','The year of Destiny — The Witcher 3 was just over the horizon.'],
+  2016:['🥽','VR arrived (Oculus Rift, HTC Vive) and Overwatch launched.'],
+  2017:['🧠','As deep learning turned into an industry-wide arms race.'],
+  2018:['🤠','Launched alongside Red Dead Redemption 2 — ray tracing’s gaming debut.'],
+  2020:['🛒','Sold out instantly — weeks before the PS5 and Cyberpunk 2077.'],
+  2022:['💬','Months before ChatGPT changed everything; Elden Ring ruled the year.'],
+  2023:['📈','The generative-AI gold rush in full swing.'],
+  2024:['🏆','Powering the data centres behind the world’s largest AI models.'],
+  2025:['🤖','The dawn of the AI-PC era.']
+};
+function tlContext(e){ return e.ctx ? ['🕹️',e.ctx] : (CTX[e.year]||null); }
+function tlRender(e){
+  const col=TLC[e.type];
+  document.getElementById('tlBigYear').textContent=e.year;       // year in the corner of the box
+  document.getElementById('tlYear').textContent=e.year;
+  document.getElementById('tlAccentBar').style.background=col;
+  const kick=document.getElementById('tlKicker');
+  kick.textContent=(e.gpu?'GPU Release':TLLABEL[e.type])+' · '+((e.mon?MON[e.mon-1]+' ':'')+e.year); kick.style.color=col;
+  document.getElementById('tlTitle').textContent=e.title;
+  document.getElementById('tlSub').textContent = e.gpu? (e.gpu.arch||'') : 'NVIDIA history';
+  document.getElementById('tlBlurb').textContent=e.blurb;
+  const ctx=tlContext(e), ce=document.getElementById('tlContext');
+  if(ctx){ ce.style.display='flex'; ce.innerHTML='<span class="ic">'+ctx[0]+'</span><span>'+ctx[1]+'</span>'; } else ce.style.display='none';
+  const fr=document.getElementById('tlFirst'), kfs=document.getElementById('tlKeyfacts'), specs=document.getElementById('tlSpecs');
+  if(e.gpu){ const g=e.gpu;
+    fr.style.display=g.first?'flex':'none'; fr.innerHTML=g.first?'<span>★</span><span>'+g.first+'</span>':'';
+    const mem=(g.vram||'').split(' '); const cap=mem.slice(0,2).join(' '), mtype=mem.slice(2).join(' ');
+    const facts=[];
+    if(g.vram) facts.push({b:cap||g.vram, s:(mtype?mtype+' memory':'memory')});
+    if(g.tdp)  facts.push({b:g.tdp, s:'power draw'});
+    facts.push(g.msrp? {b:g.msrp, s:'launch price'} : {b:g.process||'—', s:'process node'});
+    kfs.style.display='flex';
+    kfs.innerHTML=facts.slice(0,3).map(f=>`<div class="kf"><b>${f.b}</b><span>${f.s}</span></div>`).join('');
+    const rows=[['Architecture',g.arch],['Process',g.process],['Cores / shaders',g.shaders],['Memory',g.vram],['Memory bus',g.bus],['Board power',g.tdp],['Launch price',g.msrp]].filter(r=>r[1]);
+    specs.style.display='grid'; specs.innerHTML=rows.map(r=>`<div class="sp"><span>${r[0]}</span><span>${r[1]}</span></div>`).join('');
+  } else {
+    fr.style.display='none'; kfs.style.display='none'; kfs.innerHTML=''; specs.style.display='none'; specs.innerHTML='';
+  }
+}
+function setActive(i, anim){
+  tlIdx=Math.max(0,Math.min(TIMELINE.length-1,i));
+  [...stripInner.children].forEach(c=>c.classList.toggle('on',c._i===tlIdx));
+  centerStrip(anim!==false);
+  const e=TIMELINE[tlIdx]; tlRender(e);
+  const g = e.gpu? e : lastGpuUpTo(tlIdx);
+  const ctl=document.getElementById('tlModelCtl');
+  if(g){ tlGroup.visible=true; ctl.style.display='block';
+    if(g.title!==tlCurGpuTitle){ tlCurGpuTitle=g.title; buildEraModel(g); } }
+  else { tlGroup.visible=false; tlCurGpuTitle=null; ctl.style.display='none'; }
+}
+function tlStepVisible(dir){ let i=tlIdx+dir; while(i>=0&&i<TIMELINE.length&&!tlVisible(TIMELINE[i])) i+=dir;
+  if(i>=0&&i<TIMELINE.length) setActive(i,true); }
+function tlPlayBtnLabel(){ document.getElementById('tlPlay').textContent = tlPlaying?'⏸ Pause':'▶ Play history'; }
+document.getElementById('tlPlay').onclick=()=>{ if(tlIdx>=TIMELINE.length-1) setActive(0,true); tlPlaying=!tlPlaying; tlPlayT=0; tlPlayBtnLabel(); };
+document.getElementById('tlPrev').onclick=()=>{ tlPlaying=false; tlPlayBtnLabel(); tlStepVisible(-1); };
+document.getElementById('tlNext').onclick=()=>{ tlPlaying=false; tlPlayBtnLabel(); tlStepVisible(1); };
+document.getElementById('tlExplode').oninput=e=>{ tlExplodeAmt=+e.target.value/100; document.getElementById('tlExplodeVal').textContent=e.target.value+'%'; };
+
+// wheel over the stage scrubs through history; drag the strip to scroll
+let tlWheelLock=0;
+stage.addEventListener('wheel',e=>{ if(appMode!=='timeline') return; e.preventDefault();
+  const now=performance.now(); if(now-tlWheelLock<140) return; tlWheelLock=now;
+  tlPlaying=false; tlPlayBtnLabel(); tlStepVisible((e.deltaY||e.deltaX)>0?1:-1); }, {passive:false});
+let dragX=0, dragBase=0, dragging=false;
+const strip=document.getElementById('tlStrip');
+strip.addEventListener('pointerdown',e=>{ dragging=true; dragX=e.clientX; const m=/translateX\((-?[\d.]+)px\)/.exec(stripInner.style.transform); dragBase=m?+m[1]:0;
+  stripInner.style.transition='none'; strip.classList.add('drag'); strip.setPointerCapture(e.pointerId); tlPlaying=false; tlPlayBtnLabel(); });
+strip.addEventListener('pointermove',e=>{ if(!dragging) return; stripInner.style.transform='translateX('+(dragBase+(e.clientX-dragX))+'px)'; });
+strip.addEventListener('pointerup',e=>{ if(!dragging) return; dragging=false; strip.classList.remove('drag'); stripInner.style.transition='';
+  // snap to whichever visible card is nearest centre
+  const tx=dragBase+(e.clientX-dragX); let best=tlIdx, bd=1e9;
+  [...stripInner.children].forEach(c=>{ if(c.style.display==='none') return; const d=Math.abs(c.offsetLeft+c.offsetWidth/2+tx); if(d<bd){bd=d;best=c._i;} });
+  setActive(best,true); });
+document.addEventListener('keydown',e=>{ if(appMode!=='timeline'||e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  if(e.key==='ArrowRight'){ e.preventDefault(); tlPlaying=false; tlPlayBtnLabel(); tlStepVisible(1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); tlPlaying=false; tlPlayBtnLabel(); tlStepVisible(-1); }
+  else if(e.key===' '){ e.preventDefault(); document.getElementById('tlPlay').click(); } });
+
+/* ---- app mode switching ---- */
+let appMode='inspector';
+function setAppMode(mode){
+  appMode=mode;
+  document.body.classList.toggle('tl', mode==='timeline');
+  document.querySelectorAll('.msbtn').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  if(mode==='timeline'){
+    root.visible=false; dieInternals.visible=false; if(particles) particles.visible=false;
+    labelEls.forEach(el=>el.style.display='none');  // hide stale inspector labels (loop skips updateLabels in timeline)
+    controls.enableZoom=false;                      // wheel drives history instead of zoom
+    if(!stripInner.children.length) buildFilmstrip();
+    setActive(tlIdx,false);  // reading offsetLeft forces the dock layout synchronously
+    flyTo(new THREE.Vector3(3.2,2.4,10.5), new THREE.Vector3(0,0.4,0));
+    document.getElementById('modeName').textContent='History';
+  } else {
+    tlPlaying=false; tlGroup.visible=false; if(particles) particles.visible=true;
+    controls.enableZoom=true;
+    if(!dieInternals.visible) root.visible=true;
+    flyTo(new THREE.Vector3(9,6.5,13), new THREE.Vector3(0,0.5,0));
+    document.getElementById('modeName').textContent=({idle:'Idle',raster:'Rasterization',rt:'Ray Tracing',ai:'AI Compute',memory:'Memory',thermal:'Thermal/Power'})[currentMode]||'Idle';
+  }
+}
+document.getElementById('modeSwitch').addEventListener('click',e=>{ const b=e.target.closest('.msbtn'); if(b) setAppMode(b.dataset.mode); });
+
+function tlAnimate(dt,now){
+  if(tlPlaying){ tlPlayT+=dt; if(tlPlayT>=1.15){ tlPlayT=0; if(tlIdx>=TIMELINE.length-1){ tlPlaying=false; tlPlayBtnLabel(); } else tlStepVisible(1); } }
+  tlExpl.forEach(o=> o.obj.position.lerp(o.base.clone().add(o.dir.clone().multiplyScalar(tlExplodeAmt)),0.15));
+  if(tlIntro<1){ tlIntro=Math.min(1,tlIntro+dt*3); const s=0.55+0.45*(1-Math.pow(1-tlIntro,3)); tlGroup.scale.setScalar(s); }
+  tlGroup.rotation.y = Math.sin(now*0.0003)*0.25;  // gentle showcase rotation
+  const cl=tlGroup.userData.cooler; if(cl&&cl.userData.blades){ const sp=now*0.003; cl.userData.blades.forEach(b=>b.rotation.z=sp); }
+}
+
+/* ============================================================================
    SECTION 14 · ANIMATION LOOP
 ============================================================================ */
 let fanSpin=0, last=performance.now(), fpsT=0, fpsN=0;
@@ -2067,6 +2553,16 @@ function animate(now){
   const dt=Math.min((now-last)/1000,0.05); last=now;
 
   controls.update();
+
+  if(appMode==='timeline'){
+    tlAnimate(dt,now);
+    if(flyAnim){ flyAnim.t=Math.min(flyAnim.t+dt*1.6,1); const e=1-Math.pow(1-flyAnim.t,3);
+      camera.position.lerpVectors(flyAnim.fromC,flyAnim.toC,e); controls.target.lerpVectors(flyAnim.fromT,flyAnim.toT,e); if(flyAnim.t>=1) flyAnim=null; }
+    if(bloomOn) composer.render(); else renderer.render(scene,camera);
+    fpsT+=dt; fpsN++; if(fpsT>=0.5){ document.getElementById('fps').textContent=Math.round(fpsN/fpsT); fpsT=0;fpsN=0; }
+    return;
+  }
+
   tickExplode();
   updateParticles(dt);
   updateTelemetry(now);
@@ -2120,6 +2616,12 @@ function init(){
   document.getElementById('profName').textContent=currentProfile.name;
   resize();
   window.addEventListener('resize',resize);
+  // Observe the actual stage box: on mobile/responsive layouts (and Safari) the canvas
+  // can initialise at 0 height before layout settles, leaving the 3D view blank. The
+  // observer re-sizes whenever the stage gets its real dimensions or rotates.
+  if(window.ResizeObserver){ new ResizeObserver(()=>resize()).observe(stage); }
+  requestAnimationFrame(()=>{ resize(); });
+  window.addEventListener('orientationchange',()=>setTimeout(resize,200));
   requestAnimationFrame(animate);
   setTimeout(()=>{ const l=document.getElementById('loading'); l.style.opacity='0'; setTimeout(()=>l.remove(),500); },350);
 }
