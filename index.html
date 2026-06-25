@@ -1,0 +1,2129 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  NVIDIA GPU EXPLORER  ·  Interactive 3D Educational Visualization
+  ============================================================================
+  HOW TO RUN
+  ----------
+  This is a fully self-contained single HTML file. No build step required.
+
+    Option A (simplest): double-click index.html to open it in a browser.
+    Option B (recommended, avoids any CDN/CORS quirks): serve the folder.
+       python -m http.server 8080      # then open http://localhost:8080
+       npx serve .                      # alternative
+
+  Requires a modern browser with WebGL2 (Chrome, Edge, Firefox, Safari).
+  Three.js is loaded from a CDN via an ES-module import map (see <script type=importmap>).
+
+  NOTE ON SPECIFICATIONS
+  ----------------------
+  Numeric specs shown in the profile cards are ILLUSTRATIVE, clearly marked,
+  and editable in the PROFILES object below. They are teaching values, not a
+  datasheet. The 3D model uses stylized geometric approximations of generic
+  GPU layout — no proprietary CAD or copyrighted assets are used.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NVIDIA GPU Explorer — Interactive 3D</title>
+<style>
+  :root{
+    --bg-0:#05070d; --bg-1:#0a0e18; --bg-2:#111726; --panel:#0d1320cc;
+    --line:#1d2840; --line-hi:#2c3d63;
+    --txt:#e8eefc; --txt-dim:#9fb0d0; --txt-mute:#6b7aa9;
+    --accent:#76e0ff; --accent-2:#9d7bff; --green:#5dffb0; --amber:#ffcf6b;
+    --red:#ff6b7d; --pink:#ff7bd0;
+    --shadow:0 10px 40px #000a;
+    --r:12px;
+    --font:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,Consolas,"Roboto Mono",monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg-0);color:var(--txt);font-family:var(--font);overflow:hidden;}
+  body{
+    background:
+      radial-gradient(1200px 700px at 70% -10%, #142036 0%, transparent 60%),
+      radial-gradient(900px 600px at 0% 110%, #1a1330 0%, transparent 55%),
+      var(--bg-0);
+  }
+  #app{position:fixed;inset:0;display:grid;grid-template-columns:300px 1fr 360px;grid-template-rows:56px 1fr;
+       grid-template-areas:"head head head" "left stage right";}
+  /* ---------- Header ---------- */
+  header{grid-area:head;display:flex;align-items:center;gap:18px;padding:0 18px;
+         border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0c1322,#080c16);z-index:30;}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.4px;}
+  .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--green);box-shadow:0 0 14px var(--green);}
+  .brand small{font-weight:500;color:var(--txt-dim);letter-spacing:.8px;text-transform:uppercase;font-size:10px;}
+  header .modepill{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--txt-dim);font-size:12px;}
+  .kbd{font-family:var(--mono);font-size:11px;padding:2px 7px;border:1px solid var(--line-hi);border-radius:6px;color:var(--txt-dim);background:#0a1120;}
+  /* ---------- Panels ---------- */
+  aside{overflow-y:auto;overflow-x:hidden;backdrop-filter:blur(8px);}
+  #left{grid-area:left;border-right:1px solid var(--line);background:var(--panel);}
+  #right{grid-area:right;border-left:1px solid var(--line);background:var(--panel);}
+  aside::-webkit-scrollbar{width:9px;} aside::-webkit-scrollbar-thumb{background:#1c2638;border-radius:8px;}
+  .sect{padding:14px 16px;border-bottom:1px solid var(--line);}
+  .sect h3{margin:0 0 10px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--accent);font-weight:700;}
+  .row{display:flex;align-items:center;gap:8px;margin:8px 0;}
+  .row label{font-size:12px;color:var(--txt-dim);min-width:74px;}
+  /* ---------- Stage ---------- */
+  #stage{grid-area:stage;position:relative;overflow:hidden;}
+  #c{position:absolute;inset:0;display:block;}
+  #overlay{position:absolute;inset:0;pointer-events:none;}
+  .hud{position:absolute;left:16px;bottom:14px;font-family:var(--mono);font-size:11px;color:var(--txt-mute);
+       background:#070b14aa;border:1px solid var(--line);border-radius:8px;padding:7px 11px;line-height:1.55;}
+  .hud b{color:var(--accent);}
+  #legend{position:absolute;right:16px;bottom:14px;display:none;flex-direction:column;gap:5px;
+          background:#070b14d0;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--txt-dim);}
+  #legend .lg{display:flex;align-items:center;gap:8px;}
+  #legend i{width:18px;height:3px;border-radius:2px;display:inline-block;}
+  .tourcard{position:absolute;left:50%;top:16px;transform:translateX(-50%);width:min(560px,calc(100% - 48px));
+            background:linear-gradient(180deg,#111d36f5,#0b1326f5);border:1px solid var(--line-hi);border-radius:14px;
+            padding:14px 18px;box-shadow:var(--shadow);display:none;pointer-events:auto;z-index:20;}
+  .tourcard h4{margin:0 0 6px;font-size:15px;color:var(--accent);}
+  .tourcard p{margin:0 0 10px;font-size:13px;line-height:1.55;color:var(--txt-dim);}
+  .tourcard .nav{display:flex;gap:8px;align-items:center;}
+  .tourcard .step{margin-left:auto;font-size:11px;color:var(--txt-mute);font-family:var(--mono);}
+  /* ---------- Tooltip ---------- */
+  #tip{position:absolute;pointer-events:none;background:#0a1222f2;border:1px solid var(--line-hi);
+       border-radius:8px;padding:6px 10px;font-size:12px;color:var(--txt);box-shadow:var(--shadow);
+       opacity:0;transition:opacity .12s;z-index:25;white-space:nowrap;}
+  /* ---------- Controls ---------- */
+  button,select,input[type=text]{font-family:var(--font);color:var(--txt);}
+  .btn{appearance:none;border:1px solid var(--line-hi);background:#101829;color:var(--txt);
+       border-radius:9px;padding:8px 12px;font-size:12.5px;cursor:pointer;transition:.15s;display:inline-flex;
+       align-items:center;gap:7px;justify-content:center;}
+  .btn:hover{background:#16223a;border-color:#3a517f;}
+  .btn:active{transform:translateY(1px);}
+  .btn.primary{background:linear-gradient(180deg,#1b3a5e,#15293f);border-color:#2f6fa3;color:#cfeeff;}
+  .btn.on{background:linear-gradient(180deg,#16513c,#103b2c);border-color:#2f9d77;color:#bfffe6;}
+  .btn.sm{padding:6px 9px;font-size:12px;}
+  .btngrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  select{appearance:none;width:100%;background:#101829 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239fb0d0'><path d='M2 4l4 4 4-4z'/></svg>") no-repeat right 10px center;
+         border:1px solid var(--line-hi);border-radius:9px;padding:9px 30px 9px 11px;font-size:13px;cursor:pointer;}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:3px;background:#23314f;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+       background:var(--accent);cursor:pointer;box-shadow:0 0 10px var(--accent);border:2px solid #0a1120;}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);
+       cursor:pointer;border:2px solid #0a1120;}
+  input[type=text]{width:100%;background:#0b1220;border:1px solid var(--line-hi);border-radius:9px;
+       padding:9px 11px;font-size:13px;}
+  input[type=text]:focus{outline:none;border-color:var(--accent);}
+  .toggle{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px;color:var(--txt-dim);user-select:none;}
+  .switch{width:36px;height:20px;border-radius:12px;background:#23314f;position:relative;transition:.18s;flex:0 0 auto;}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+       background:#9fb0d0;transition:.18s;}
+  .toggle.on .switch{background:#1f6f53;} .toggle.on .switch::after{left:18px;background:var(--green);}
+  .valbadge{font-family:var(--mono);font-size:11px;color:var(--accent);min-width:38px;text-align:right;}
+  /* ---------- Profile card ---------- */
+  .pcard{border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:#0b1220aa;margin-top:10px;}
+  .pcard .tier{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--accent-2);font-weight:700;}
+  .pcard h4{margin:3px 0 4px;font-size:15px;}
+  .pcard .purpose{font-size:12px;color:var(--txt-dim);line-height:1.5;margin-bottom:8px;}
+  .spec{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0;border-top:1px dashed #1a2540;}
+  .spec span:first-child{color:var(--txt-mute);} .spec span:last-child{font-family:var(--mono);color:var(--txt);}
+  .illus{font-size:10px;color:var(--amber);margin-top:7px;display:flex;gap:5px;align-items:flex-start;line-height:1.4;}
+  /* ---------- Info panel ---------- */
+  #infoEmpty{color:var(--txt-mute);font-size:13px;line-height:1.6;}
+  .crumbs{font-size:11px;color:var(--txt-mute);margin-bottom:6px;font-family:var(--mono);}
+  #infoName{font-size:19px;font-weight:700;margin:0 0 2px;}
+  .tagline{font-size:12px;color:var(--accent);margin-bottom:12px;}
+  .lvltabs{display:flex;gap:6px;margin-bottom:10px;}
+  .lvltabs .btn{flex:1;}
+  .infoblock{margin:0 0 13px;}
+  .infoblock h5{margin:0 0 4px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--accent-2);}
+  .infoblock p{margin:0;font-size:13px;line-height:1.6;color:var(--txt-dim);}
+  .analogy{background:#10182b;border-left:3px solid var(--amber);border-radius:0 8px 8px 0;padding:9px 11px;font-size:12.5px;color:#e9d9b0;line-height:1.55;}
+  .connlist{list-style:none;padding:0;margin:0;}
+  .connlist li{font-size:12px;padding:5px 0;border-top:1px solid #16203a;display:flex;gap:8px;cursor:pointer;color:var(--txt-dim);}
+  .connlist li:hover{color:var(--accent);}
+  .connlist li .arrow{color:var(--accent);}
+  .drill{margin-top:10px;}
+  .chiplist{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{font-size:11px;border:1px solid var(--line-hi);background:#0e1626;border-radius:20px;padding:5px 11px;cursor:pointer;color:var(--txt-dim);transition:.15s;}
+  .chip:hover{border-color:var(--accent);color:var(--accent);}
+  .searchwrap{position:relative;}
+  #results{position:absolute;left:0;right:0;top:42px;background:#0c1322;border:1px solid var(--line-hi);
+           border-radius:9px;overflow:hidden;z-index:15;box-shadow:var(--shadow);display:none;}
+  #results div{padding:8px 11px;font-size:12.5px;cursor:pointer;border-bottom:1px solid #131c30;color:var(--txt-dim);}
+  #results div:hover,#results div.sel{background:#16223a;color:var(--accent);}
+  .hint{font-size:11px;color:var(--txt-mute);line-height:1.5;margin-top:8px;}
+  #loading{position:fixed;inset:0;background:var(--bg-0);display:flex;flex-direction:column;align-items:center;
+           justify-content:center;gap:16px;z-index:100;transition:opacity .5s;}
+  .spin{width:46px;height:46px;border:3px solid #1d2840;border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #loading p{color:var(--txt-dim);font-size:13px;}
+  /* ---------- Responsive (tablet) ---------- */
+  @media(max-width:1100px){
+    #app{grid-template-columns:1fr;grid-template-rows:52px 1fr;grid-template-areas:"head" "stage";}
+    #left,#right{position:absolute;top:52px;bottom:0;width:320px;z-index:40;transition:transform .25s;}
+    #left{left:0;transform:translateX(-101%);} #left.open{transform:none;}
+    #right{right:0;transform:translateX(101%);} #right.open{transform:none;}
+    .mobtog{display:inline-flex !important;}
+  }
+  .mobtog{display:none;}
+  /* ---------- Pipeline walkthrough ---------- */
+  #pipeline{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);width:min(660px,calc(100% - 36px));
+    background:linear-gradient(180deg,#0d1626f4,#0a1018f4);border:1px solid var(--line-hi);border-radius:14px;
+    padding:10px 14px 12px;box-shadow:var(--shadow);display:none;pointer-events:auto;z-index:18;}
+  #railChips{display:flex;gap:4px;overflow-x:auto;padding-bottom:8px;}
+  #railChips::-webkit-scrollbar{height:5px;} #railChips::-webkit-scrollbar-thumb{background:#1c2638;border-radius:6px;}
+  .rchip{flex:0 0 auto;font-size:10.5px;padding:4px 9px;border:1px solid var(--line-hi);border-radius:20px;
+    background:#0e1626;color:var(--txt-mute);cursor:pointer;white-space:nowrap;transition:.15s;}
+  .rchip.on{background:linear-gradient(180deg,#1b3a5e,#15293f);border-color:var(--accent);color:#cfeeff;}
+  .rchip .n{opacity:.55;margin-right:5px;font-family:var(--mono);}
+  #stageTitle{color:var(--accent);font-size:13.5px;font-weight:700;}
+  #stageDesc{display:block;font-size:12px;color:var(--txt-dim);line-height:1.55;margin:4px 0 8px;}
+  #stageParts{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px;}
+  #stageParts .pchip{font-size:10.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;
+    background:#10182b;color:var(--accent);cursor:pointer;}
+  #stageParts .pchip:hover{border-color:var(--accent);}
+  #pipeline .prow{display:flex;gap:7px;align-items:center;}
+  #pipeline .prow .sp{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--txt-mute);}
+  /* ---------- Telemetry ---------- */
+  #telemetry{position:absolute;right:16px;top:14px;width:196px;background:#070b14d8;border:1px solid var(--line);
+    border-radius:10px;padding:11px 13px;display:none;z-index:16;}
+  #telemetry h4{margin:0 0 9px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);}
+  .meter{margin:8px 0;font-size:11px;color:var(--txt-dim);}
+  .meter .lab{display:flex;justify-content:space-between;margin-bottom:3px;}
+  .meter .lab b{font-family:var(--mono);color:var(--txt);}
+  .bar{height:6px;border-radius:4px;background:#1a2740;overflow:hidden;}
+  .bar i{display:block;height:100%;border-radius:4px;transition:width .3s ease-out;}
+  #telemetry .illus{font-size:9px;color:var(--amber);margin-top:9px;line-height:1.4;}
+  /* ---------- Modal overlays ---------- */
+  .modal{position:fixed;inset:0;background:#04060bcc;backdrop-filter:blur(4px);display:none;
+    align-items:center;justify-content:center;z-index:60;padding:24px;}
+  .modal.open{display:flex;}
+  .sheet{position:relative;background:linear-gradient(180deg,#0e1626,#0a1018);border:1px solid var(--line-hi);
+    border-radius:16px;max-width:900px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow);padding:22px 26px;}
+  .sheet::-webkit-scrollbar{width:9px;} .sheet::-webkit-scrollbar-thumb{background:#1c2638;border-radius:8px;}
+  .sheet h2{margin:0 0 4px;font-size:20px;}
+  .sheet .sub{color:var(--txt-dim);font-size:13px;margin-bottom:18px;line-height:1.5;}
+  .modal .close{position:absolute;top:16px;right:18px;}
+  .cmp{display:grid;grid-template-columns:1.25fr 1fr 1fr;}
+  .cmp>div{padding:9px 10px;border-bottom:1px solid var(--line);font-size:12.5px;}
+  .cmp .hd{font-weight:700;color:var(--accent);border-bottom:1px solid var(--line-hi);}
+  .cmp .hd small{display:block;font-weight:500;color:var(--txt-mute);font-size:10.5px;}
+  .cmp .mname{color:var(--txt-mute);}
+  .cmp .v{font-family:var(--mono);color:var(--txt);font-size:12px;}
+  .cmpbar{height:7px;border-radius:4px;background:#1a2740;margin-top:5px;overflow:hidden;}
+  .cmpbar i{display:block;height:100%;border-radius:4px;}
+  .cmpnote{grid-column:1 / -1;font-size:11.5px;color:var(--txt-mute);padding:8px 10px 4px;line-height:1.55;background:#0a1018;}
+  .gloss{columns:2;column-gap:18px;margin-top:4px;}
+  .gterm{break-inside:avoid;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin:0 0 12px;background:#0b1220;}
+  .gterm h4{margin:0 0 5px;font-size:13.5px;color:var(--accent);}
+  .gterm p{margin:0;font-size:12px;line-height:1.55;color:var(--txt-dim);}
+  .gterm .dd{margin-top:7px;color:var(--txt-mute);font-size:11.5px;line-height:1.5;display:none;}
+  .gterm.open .dd{display:block;}
+  .gterm .more{font-size:10.5px;color:var(--accent);cursor:pointer;margin-top:6px;display:inline-block;}
+  .keys{display:grid;grid-template-columns:1fr 1fr;gap:2px 22px;}
+  .keys div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:6px 0;font-size:12.5px;color:var(--txt-dim);}
+  @media(max-width:680px){ .gloss{columns:1;} .cmp{font-size:11.5px;} .keys{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div id="loading"><div class="spin"></div><p>Building GPU model…</p></div>
+
+<div id="app">
+  <!-- ===================== HEADER ===================== -->
+  <header>
+    <button class="btn sm mobtog" id="togLeft">☰ Controls</button>
+    <div class="brand"><span class="dot"></span><div>GPU&nbsp;EXPLORER<br><small>Interactive 3D Architecture</small></div></div>
+    <div class="modepill">
+      <span id="profName">—</span> · <span id="modeName">Idle</span>
+    </div>
+    <button class="btn sm mobtog" id="togRight">Info ☰</button>
+  </header>
+
+  <!-- ===================== LEFT PANEL ===================== -->
+  <aside id="left">
+    <div class="sect">
+      <h3>GPU Profile</h3>
+      <select id="profileSel"></select>
+      <div id="profileCard"></div>
+    </div>
+
+    <div class="sect">
+      <h3>Exploded View</h3>
+      <div class="row">
+        <label>Separate</label>
+        <input type="range" id="explode" min="0" max="100" value="0">
+        <span class="valbadge" id="explodeVal">0%</span>
+      </div>
+      <div class="hint">Drag to pull the card apart layer-by-layer. Click any part to inspect it.</div>
+    </div>
+
+    <div class="sect">
+      <h3>Simulation Mode</h3>
+      <select id="modeSel">
+        <option value="idle">Idle — static model</option>
+        <option value="raster">Rasterized gaming frame</option>
+        <option value="rt">Ray tracing</option>
+        <option value="ai">AI inference / training</option>
+        <option value="memory">Memory transfer</option>
+        <option value="thermal">Thermal &amp; power</option>
+      </select>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="playBtn" style="flex:1">⏸ Pause</button>
+        <button class="btn" id="resetBtn">↺ Reset</button>
+      </div>
+      <div class="row">
+        <label>Speed</label>
+        <input type="range" id="speed" min="10" max="300" value="100">
+        <span class="valbadge" id="speedVal">1.0×</span>
+      </div>
+      <p id="modeDesc" class="hint"></p>
+      <div class="toggle" id="tWalk" style="margin-top:6px"><div class="switch"></div>Step-through pipeline</div>
+    </div>
+
+    <div class="sect">
+      <h3>Learn &amp; Compare</h3>
+      <div class="btngrid">
+        <button class="btn sm" id="compareBtn">⇄ Compare GPUs</button>
+        <button class="btn sm" id="glossaryBtn">📖 Glossary</button>
+      </div>
+      <button class="btn sm" id="helpBtn" style="margin-top:7px;width:100%">⌨ Shortcuts &amp; help</button>
+    </div>
+
+    <div class="sect">
+      <h3>View Options</h3>
+      <div class="toggle on" id="tLabels"><div class="switch"></div>Component labels</div>
+      <div class="toggle" id="tXray"><div class="switch"></div>X-ray / transparent</div>
+      <div class="toggle" id="tBloom"><div class="switch"></div>Cinematic bloom</div>
+      <div class="toggle" id="tRotate"><div class="switch"></div>Auto-rotate</div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn sm" id="tourBtn" style="flex:1">🎬 Guided Tour</button>
+        <button class="btn sm" id="frameBtn">⤢ Recenter</button>
+      </div>
+    </div>
+
+    <div class="sect">
+      <h3>Find a Component</h3>
+      <div class="searchwrap">
+        <input type="text" id="search" placeholder="e.g. Tensor Core, VRAM, PCIe…" autocomplete="off">
+        <div id="results"></div>
+      </div>
+      <div class="hint">Tip: <span class="kbd">drag</span> rotate · <span class="kbd">scroll</span> zoom · <span class="kbd">right-drag</span> pan</div>
+    </div>
+  </aside>
+
+  <!-- ===================== STAGE ===================== -->
+  <main id="stage">
+    <canvas id="c"></canvas>
+    <div id="overlay">
+      <div class="hud">FPS <b id="fps">–</b> · parts <b id="partCount">–</b> · <span id="hudHint">click a part to inspect</span></div>
+      <div id="legend"></div>
+      <div class="tourcard" id="tourcard">
+        <h4 id="tourTitle"></h4>
+        <p id="tourBody"></p>
+        <div class="nav">
+          <button class="btn sm" id="tourPrev">← Prev</button>
+          <button class="btn sm primary" id="tourNext">Next →</button>
+          <button class="btn sm" id="tourEnd">✕ Exit</button>
+          <span class="step" id="tourStep"></span>
+        </div>
+      </div>
+      <div id="telemetry">
+        <h4>Live activity <span style="color:var(--txt-mute)">(illustrative)</span></h4>
+        <div id="meters"></div>
+        <div class="illus">⚠ Animated teaching estimates — not measured hardware counters.</div>
+      </div>
+      <div id="pipeline">
+        <div id="railChips"></div>
+        <div><span id="stageTitle"></span><span id="stageDesc"></span></div>
+        <div id="stageParts"></div>
+        <div class="prow">
+          <button class="btn sm" id="stagePrev">◀ Prev</button>
+          <button class="btn sm primary" id="stageNext">Next stage ▶</button>
+          <span class="sp" id="stageCount"></span>
+        </div>
+      </div>
+    </div>
+    <div id="tip"></div>
+  </main>
+
+  <!-- ===================== RIGHT / INFO PANEL ===================== -->
+  <aside id="right">
+    <div class="sect">
+      <div id="infoEmpty">
+        <p><b>Nothing selected.</b></p>
+        <p>Rotate the GPU and <b>click any component</b> — board, cooler, fans, die, VRAM, power stages, PCIe, NVLink — to read what it does, how it works, and why it matters.</p>
+        <p>Click the <b>silicon die</b> to drill into its internals: SMs, CUDA / Tensor / RT cores, caches, memory controllers and more.</p>
+      </div>
+      <div id="infoContent" style="display:none">
+        <div class="crumbs" id="crumbs"></div>
+        <div id="infoName"></div>
+        <div class="tagline" id="tagline"></div>
+        <div class="lvltabs">
+          <button class="btn sm primary" id="tabQuick">Quick</button>
+          <button class="btn sm" id="tabDeep">Deep dive</button>
+        </div>
+        <div class="infoblock"><h5>What it is</h5><p id="iWhat"></p></div>
+        <div class="infoblock"><h5>How it works</h5><p id="iHow"></p></div>
+        <div class="infoblock"><h5>Why it matters for performance</h5><p id="iWhy"></p></div>
+        <div class="infoblock"><h5>Analogy</h5><div class="analogy" id="iAnalogy"></div></div>
+        <div class="infoblock" id="connWrap"><h5>Connects to</h5><ul class="connlist" id="iConn"></ul></div>
+        <div class="drill" id="drillWrap" style="display:none">
+          <div class="infoblock"><h5>Explore deeper</h5>
+            <div class="chiplist" id="iDrill"></div>
+            <button class="btn sm" id="backBtn" style="margin-top:10px;display:none">← Back to whole GPU</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== MODALS ===================== -->
+  <div class="modal" id="compareModal"><div class="sheet">
+    <button class="btn sm close" data-close>✕</button>
+    <h2>GeForce RTX 5090 vs NVIDIA B200</h2>
+    <div class="sub">Two flagships, two very different jobs: a gaming/creator card vs a data-centre AI accelerator. Bars are normalised per row. Figures are NVIDIA-published where available; board-level details are illustrative.</div>
+    <div class="cmp" id="cmpTable"></div>
+  </div></div>
+
+  <div class="modal" id="glossaryModal"><div class="sheet">
+    <button class="btn sm close" data-close>✕</button>
+    <h2>Glossary</h2>
+    <div class="sub">Core GPU concepts at two depths — click “deep dive” on any card. Searching the component box also surfaces these.</div>
+    <div class="gloss" id="glossList"></div>
+  </div></div>
+
+  <div class="modal" id="helpModal"><div class="sheet">
+    <button class="btn sm close" data-close>✕</button>
+    <h2>Controls &amp; shortcuts</h2>
+    <div class="sub">Everything you can do in the explorer.</div>
+    <div class="keys" id="keysList"></div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     Three.js via ES module import map (CDN, no build step)
+     ============================================================ -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ============================================================================
+   SECTION 1 · GPU PROFILES (illustrative, editable teaching values)
+   ----------------------------------------------------------------------------
+   Specs are clearly marked as illustrative. Swap in your own figures freely.
+   Each profile drives: the spec card, model variations (NVLink vs display
+   outputs, memory type, # of VRAM packages), and explanatory copy.
+============================================================================ */
+const PROFILES = {
+  consumer: {
+    id:'consumer',
+    tier:'Flagship Consumer · GeForce',
+    name:'GeForce RTX 5090 — Founders Edition',
+    purpose:'Built to render real-time graphics: high frame rates, ray-traced lighting, DLSS, and creator / local-AI workloads. The Founders Edition packs a compact central PCB with a 2-slot dual flow-through cooler. Optimized for single-card latency and display output.',
+    accent:0x76e0ff,
+    gpuName:'GB202 (Blackwell)',
+    memType:'GDDR7', memBus:'512-bit', vram:'32 GB', memChips:16,
+    nvlink:false, displayOut:true, powerConn:'1× 16-pin 12V-2×6 (≤600 W)',
+    cooler:'flowthrough', fans:2, vrmPhases:24, dualDie:false,
+    specs:[
+      ['GPU die','GB202 · TSMC 4N · 750 mm²'],
+      ['Transistors','92.2 billion'],
+      ['CUDA cores','21,760'],
+      ['Streaming Multiprocessors','170'],
+      ['Tensor Cores','680 (5th-gen)'],
+      ['RT Cores','170 (4th-gen)'],
+      ['Memory','32 GB GDDR7 · 512-bit'],
+      ['Bandwidth','1,792 GB/s'],
+      ['Interface','PCIe 5.0 ×16'],
+      ['Display outputs','3× DP 2.1b · 1× HDMI 2.1'],
+      ['Total board power (TGP)','575 W'],
+      ['Power connector','1× 16-pin 12V-2×6'],
+    ],
+    why:'Gaming needs thousands of parallel shader cores plus dedicated RT/Tensor units for ray tracing and AI upscaling, fed by a wide 512-bit GDDR7 bus, and display outputs to drive monitors.',
+    note:'Core/spec figures are NVIDIA-published. Board-level details (VRM phase count, exact trace routing, internal die floorplan) are engineering-plausible approximations — NVIDIA does not publish board files.'
+  },
+  datacenter: {
+    id:'datacenter',
+    tier:'Flagship Data-Centre · Blackwell',
+    name:'NVIDIA B200 — SXM Module',
+    purpose:'Built for AI training/inference and HPC at scale. Two reticle-limited dies are fused by a 10 TB/s NV-HBI link into one GPU, ringed by HBM3e and lashed to other GPUs over NVLink. No display outputs; passively cooled by chassis airflow on an SXM module. Optimized for throughput and multi-GPU collectives.',
+    accent:0x9d7bff,
+    gpuName:'2× Blackwell dies (NV-HBI)',
+    memType:'HBM3e', memBus:'8× stacks', vram:'180 GB', memChips:8,
+    nvlink:true, displayOut:false, powerConn:'SXM module power rails',
+    cooler:'passive', fans:0, vrmPhases:12, dualDie:true,
+    specs:[
+      ['GPU','2× reticle-limited Blackwell dies'],
+      ['Process','TSMC 4NP'],
+      ['Die-to-die link','NV-HBI · 10 TB/s'],
+      ['Transistors','208 billion'],
+      ['FP4 Tensor','~18 PFLOPS dense (~36 sparse)'],
+      ['FP8 Tensor','~9 PFLOPS dense (~18 sparse)'],
+      ['Memory','180 GB HBM3e · 8 stacks'],
+      ['Bandwidth','~8 TB/s'],
+      ['NVLink','5th-gen · 1.8 TB/s per GPU'],
+      ['Host interface','PCIe 5.0 / SXM'],
+      ['Board power','up to 1000 W'],
+      ['Cooling','passive (chassis airflow)'],
+    ],
+    why:'Large models exceed one die: two dies act as one via NV-HBI, HBM3e delivers ~8 TB/s next to the silicon, and NVLink fuses GPUs so a whole rack behaves like one accelerator — display outputs are pointless here.',
+    note:'Architecture figures are NVIDIA-published (standard B200 = 180 GB; the 192 GB part is the later B300/Ultra tier). NVIDIA headlines FP4/FP8 as ~20/~10 PFLOPS — those are the WITH-SPARSITY numbers; dense is ~half. Substrate layout, VRM and die floorplan are engineering-plausible approximations — NVIDIA does not publish module CAD.'
+  }
+};
+
+/* ============================================================================
+   SECTION 2 · COMPONENT KNOWLEDGE BASE
+   ----------------------------------------------------------------------------
+   The single source of truth for the info panel. Each entry has two depth
+   levels (quick / deep) for what/how/why, an analogy, connection links, and
+   optional drill-down children (used for die internals).
+============================================================================ */
+const COMP = {
+  shroud:{ name:'Cooler shroud', tag:'Outer housing & airflow guide',
+    quick:{ what:'The plastic/metal shell you see on the outside of the card.',
+      how:'It channels air from the fans through the heatsink fins and out of the card.',
+      why:'Good ducting means more heat leaves the card, so clocks stay high longer.' },
+    deep:{ what:'The structural shroud encloses the fin stack and defines airflow paths, often with a backplate for rigidity and secondary cooling.',
+      how:'It forms ducts so fan pressure is forced through (not around) the dense fin array; flow-through sections let air exit the rear I/O and top.',
+      why:'Aerodynamic losses here directly cap sustained thermal headroom and therefore boost clocks under load.' },
+    analogy:'The hood and ducting of a car engine bay — it directs airflow where it’s needed.',
+    conn:['fans','heatsink'] },
+
+  fans:{ name:'Cooling fans', tag:'Move air through the heatsink',
+    quick:{ what:'Spinning fans that push air across the metal fins.',
+      how:'They pull cool air in and force it through the heatsink to carry heat away.',
+      why:'More airflow = cooler chip = higher, steadier clock speeds.' },
+    deep:{ what:'Axial (or sometimes blower) fans providing forced convection over the fin array; speed is PWM-controlled from the GPU’s thermal sensors.',
+      how:'A fan curve maps die temperature to RPM; some cards idle fans off ("0 dB") until a temperature threshold, then ramp to balance noise vs cooling.',
+      why:'Airflow sets the convective heat-transfer rate. Insufficient airflow → the GPU hits its thermal limit and throttles clocks to protect itself.' },
+    analogy:'The fan in your kitchen extractor hood — spin it faster, more heat leaves.',
+    conn:['heatsink','shroud','die'] },
+
+  heatsink:{ name:'Heatsink & vapor chamber', tag:'Spreads and dissipates heat',
+    quick:{ what:'A block of metal fins sitting on top of the chip, often with a vapor chamber.',
+      how:'It soaks up heat from the GPU and spreads it across many fins for the fans to blow away.',
+      why:'A bigger, more efficient heatsink lets the GPU run faster before it gets too hot.' },
+    deep:{ what:'A copper vapor chamber contacts the die, feeding heat into a stack of aluminium fins; heat pipes may distribute load across the fin array.',
+      how:'Inside the vapor chamber a working fluid boils at the hot spot, the vapor travels to cooler regions, condenses, and wicks back — moving heat far faster than solid metal.',
+      why:'Thermal resistance from die→fins→air determines how much power the GPU can sustain. Lower resistance = higher sustained clocks before throttling.' },
+    analogy:'A radiator: a small hot source spread over a huge surface so air can carry the heat off.',
+    conn:['die','fans','pcb'] },
+
+  pcb:{ name:'Printed circuit board (PCB)', tag:'The backbone that wires everything',
+    quick:{ what:'The green/black board that everything is mounted and wired onto.',
+      how:'Copper traces carry power and high-speed signals between the GPU, memory, and connectors.',
+      why:'Clean, well-designed wiring lets memory and the GPU talk at full speed without errors.' },
+    deep:{ what:'A multi-layer fiberglass board with dedicated power, ground, and signal layers carrying the GPU↔VRAM buses, PCIe lanes, and VRM power planes.',
+      how:'Length-matched differential traces preserve signal integrity for multi-Gbps memory and PCIe links; thick inner copper planes deliver hundreds of amps to the GPU.',
+      why:'Trace impedance and power-plane design limit memory speed and stability — sloppy layout shows up as instability and reduced overclock headroom.' },
+    analogy:'A city’s road + power grid: the routes that let everything move data and power around.',
+    conn:['gpupkg','vram','vrm','pcie','nvlink'] },
+
+  gpupkg:{ name:'GPU package (substrate)', tag:'Carrier for the silicon die',
+    quick:{ what:'The square chip module that holds the actual processor.',
+      how:'It connects the tiny silicon die to the much larger contacts on the board.',
+      why:'It protects the die and routes its thousands of connections to the board reliably.' },
+    deep:{ what:'A substrate (interposer/organic) that fans the die’s micro-bumps out to the board’s solder balls; on data-centre parts it also hosts HBM stacks beside the die.',
+      how:'The die is flip-chip mounted; the substrate redistributes thousands of signal/power connections and, with HBM, carries an ultra-wide silicon-interposer bus to memory stacks.',
+      why:'Advanced packaging (e.g. silicon interposers) is what enables enormous memory bandwidth and chiplet designs in modern accelerators.' },
+    analogy:'A power strip + adapter: it lets a tiny plug fan out to many sockets reliably.',
+    conn:['die','pcb','vram'] },
+
+  die:{ name:'Silicon die (GPU)', tag:'The processor itself — click to drill in',
+    quick:{ what:'The actual computer chip — billions of transistors that do all the work.',
+      how:'It splits work across thousands of tiny cores that run in parallel.',
+      why:'This is the engine: its core count, clocks, and design set raw performance.' },
+    deep:{ what:'On the RTX 5090 this is the monolithic GB202 (92.2 B transistors, 750 mm², TSMC 4N) — a partially-enabled die running 170 of the full chip’s 192 SMs. On the B200 it is TWO reticle-limited Blackwell dies (TSMC 4NP) fused by a 10 TB/s NV-HBI link so software sees one GPU (208 B transistors total). Either way it holds the SMs, cache hierarchy, memory controllers, scheduling logic and interconnect fabric.',
+      how:'Work is issued as thousands of threads grouped into warps; SMs execute them across CUDA, Tensor, and RT units while caches and memory controllers feed data.',
+      why:'Architecture (SM count, core mix, cache sizes, clocks) determines how much parallel throughput the GPU delivers per watt.' },
+    analogy:'A factory with thousands of identical workstations all building parts simultaneously.',
+    conn:['gpupkg','vram','heatsink'],
+    drill:['gpc','sm','cuda','tensor','rt','l2','memctrl','media','sched','copy','nvfabric'] },
+
+  vram:{ name:'VRAM (memory chips)', tag:'Stores frames, models & data',
+    quick:{ what:'The memory chips around the GPU that hold textures, frames, and AI data.',
+      how:'The GPU reads and writes them billions of times a second over a wide, fast bus.',
+      why:'More and faster memory = bigger scenes, higher resolutions, and larger AI models.' },
+    deep:{ what:'High-bandwidth memory packages — GDDR7 on consumer cards (around the die) or stacked HBM beside the die on data-centre parts.',
+      how:'A very wide memory bus (e.g. 384-bit GDDR, or thousands of bits with HBM) moves data in parallel; controllers schedule accesses to hide latency.',
+      why:'Memory bandwidth is the #1 bottleneck for many GPU workloads — both gaming at high res and feeding Tensor Cores during AI.' },
+    analogy:'The factory’s on-site warehouse: huge and right next door so workers never wait for parts.',
+    conn:['memctrl','die','pcb'] },
+
+  vrm:{ name:'Power delivery (VRM)', tag:'Clean, stable power for the die',
+    quick:{ what:'The cluster of power components near the connectors and die.',
+      how:'They convert the 12 V from the PSU down to the ~1 V the chip needs, very precisely.',
+      why:'Stable power lets the GPU hit and hold high clocks without crashing.' },
+    deep:{ what:'A multi-phase buck converter: power stages (MOSFETs), inductors (chokes), and capacitors controlled by a PWM controller.',
+      how:'Each phase switches in turn to deliver a slice of the total current; interleaving phases smooths ripple, supplying hundreds of amps at ~1 V on demand.',
+      why:'More/better phases mean cleaner voltage under transient load spikes — essential for stability and high sustained boost clocks.' },
+    analogy:'A team of pit-crew members handing fuel in turns so the engine never starves or floods.',
+    conn:['power','die','pcb'] },
+
+  power:{ name:'Power connector', tag:'Feeds energy from the PSU',
+    quick:{ what:'The socket where the power-supply cable plugs in.',
+      how:'It brings 12 V into the card to feed the power-delivery circuitry.',
+      why:'A flagship can draw hundreds of watts — it needs a dedicated high-current feed.' },
+    deep:{ what:'On modern flagships, a 16-pin (12V-2x6 / 12VHPWR) connector carrying up to ~600 W; data-centre parts use board/SXM power planes instead.',
+      how:'Multiple 12 V pins share the current with sense pins that let the card detect how much power the cable can safely supply.',
+      why:'The card’s entire power budget — and thus its peak performance — is gated by what this feed can safely deliver.' },
+    analogy:'The fuel line into the engine: the whole machine’s output is limited by it.',
+    conn:['vrm'] },
+
+  pcie:{ name:'PCIe interface', tag:'Talks to the CPU & system',
+    quick:{ what:'The gold edge connector that slots into the motherboard.',
+      how:'It carries data and commands between the GPU and the rest of the computer.',
+      why:'It’s how the CPU sends work and how data gets to/from system memory.' },
+    deep:{ what:'A PCIe 5.0 ×16 edge connector — 16 high-speed serial lanes to the CPU/chipset (~64 GB/s each direction at gen 5).',
+      how:'The CPU issues commands and DMAs data over these lanes; the GPU streams results back. Latency/bandwidth here matter most when data must cross from system RAM.',
+      why:'PCIe is far slower than on-card VRAM or NVLink, so minimizing CPU↔GPU transfers (or using NVLink) is key for scaling.' },
+    analogy:'The loading dock connecting the factory to the city’s highway — vital, but narrower than the in-factory conveyor.',
+    conn:['pcb','die'] },
+
+  nvlink:{ name:'NVLink interconnect', tag:'Fuses multiple GPUs together',
+    quick:{ what:'A special high-speed link to connect GPUs directly (data-centre cards).',
+      how:'GPUs share data over NVLink far faster than going through PCIe.',
+      why:'It lets many GPUs act like one giant accelerator for huge AI models.' },
+    deep:{ what:'A proprietary point-to-point interconnect (and NVSwitch fabric) providing terabytes/sec of GPU-to-GPU bandwidth — an order of magnitude beyond PCIe.',
+      how:'GPUs perform collective operations (all-reduce, all-gather) over NVLink so gradients and activations move between chips without bottlenecking on PCIe or the CPU.',
+      why:'Training models larger than one GPU’s memory depends on fast inter-GPU links — NVLink bandwidth often sets multi-GPU scaling efficiency.' },
+    analogy:'A private high-speed rail directly between factories, bypassing the public highway entirely.',
+    conn:['pcb','nvfabric'] },
+
+  display:{ name:'Display outputs', tag:'Drives your monitors',
+    quick:{ what:'The HDMI / DisplayPort sockets on the bracket (consumer cards).',
+      how:'Finished frames are scanned out of memory and sent to your monitor.',
+      why:'They set the resolutions and refresh rates you can actually display.' },
+    deep:{ what:'Display controllers + DisplayPort/HDMI PHYs that read the framebuffer and serialize it to monitors, handling timing, HDR, and variable refresh.',
+      how:'A display engine scans out the completed framebuffer at the panel’s refresh rate; features like G-SYNC sync that scanout to the GPU’s render pace.',
+      why:'Output spec (DP 2.1/HDMI 2.1) caps max resolution+refresh — irrelevant on data-centre parts, which have none.' },
+    analogy:'The shipping doors that send the finished product out to the showroom (your screen).',
+    conn:['die','pcb'] },
+
+  /* ---- Die internals (drill-down children) ---- */
+  sm:{ name:'Streaming Multiprocessor (SM)', tag:'The GPU’s fundamental compute block', parent:'die',
+    quick:{ what:'A self-contained mini-processor; the GPU has many of them.',
+      how:'Each SM runs many threads at once and holds its own cores and cache.',
+      why:'More SMs = more parallel work done per clock.' },
+    deep:{ what:'The replicated building block containing CUDA cores, Tensor Cores, an RT core, warp schedulers, register file, and L1/shared memory.',
+      how:'SMs execute warps (groups of 32 threads) in lockstep, switching between many warps to hide memory latency; partitions issue independent instruction streams.',
+      why:'Scaling SM count is how NVIDIA scales performance across a product stack — it’s the unit of parallelism.' },
+    analogy:'One fully-equipped workshop in the factory, with its own tools and workbench.',
+    conn:['cuda','tensor','rt','l2','sched'] },
+
+  cuda:{ name:'CUDA cores', tag:'General-purpose parallel ALUs', parent:'die',
+    quick:{ what:'The thousands of small cores that do general math.',
+      how:'Each handles simple arithmetic; together they crunch huge parallel workloads.',
+      why:'They run shaders and general compute — the bulk of gaming/graphics math.' },
+    deep:{ what:'Scalar FP32/INT arithmetic units inside each SM — the classic "shader cores".',
+      how:'A warp scheduler issues one instruction to 32 lanes; CUDA cores execute SIMT-style, one thread per lane, across many warps to stay busy.',
+      why:'They handle vertex/pixel shading and general-purpose compute; raw CUDA throughput drives rasterized gaming and many HPC kernels.' },
+    analogy:'A huge team of workers each doing simple arithmetic — slow alone, unstoppable together.',
+    conn:['sm','sched','l2'] },
+
+  tensor:{ name:'Tensor Cores', tag:'Matrix-math engines for AI', parent:'die',
+    quick:{ what:'Special cores built to multiply matrices very fast.',
+      how:'They do whole small matrix multiply-accumulates in one shot.',
+      why:'They power AI training/inference and DLSS upscaling far faster than CUDA cores.' },
+    deep:{ what:'Mixed-precision matrix-multiply-accumulate units (FP16/BF16/FP8/FP4 in, FP32 accumulate) — the workhorse of deep learning.',
+      how:'Each instruction computes D = A×B + C on small tiles; the SM streams tiles from cache/VRAM, chaining MACs to build large GEMMs that dominate neural nets.',
+      why:'Almost all modern AI throughput comes from Tensor Cores; lower-precision formats (FP8/FP4) multiply effective FLOPs for inference.' },
+    analogy:'A specialized machine that stamps out an entire grid of results in one press, not one cell at a time.',
+    conn:['sm','l2','memctrl'] },
+
+  rt:{ name:'RT Cores', tag:'Ray-tracing acceleration', parent:'die',
+    quick:{ what:'Cores that figure out where light rays hit objects.',
+      how:'They quickly test rays against a scene’s geometry structure.',
+      why:'They make real-time ray-traced lighting and reflections possible.' },
+    deep:{ what:'Fixed-function units that accelerate BVH traversal and ray-triangle intersection — the expensive part of ray tracing.',
+      how:'A ray is tested against a Bounding Volume Hierarchy: the RT core walks the tree and reports hits, offloading from CUDA cores which then shade the hit.',
+      why:'Without dedicated traversal hardware, real-time ray tracing would be far too slow; RT cores make path-traced lighting feasible at playable frame rates.' },
+    analogy:'A laser rangefinder that instantly tells you the first thing each beam hits.',
+    conn:['sm','l2','cuda'] },
+
+  l2:{ name:'L1 / L2 cache', tag:'Fast on-chip data buffers', parent:'die',
+    quick:{ what:'Small, very fast memory on the chip itself.',
+      how:'It keeps recently/soon-needed data close so cores don’t wait on VRAM.',
+      why:'Cache hits are vastly faster than VRAM — big caches cut memory bottlenecks.' },
+    deep:{ what:'A hierarchy: per-SM L1/shared memory plus a large chip-wide L2 shared by all SMs and memory controllers.',
+      how:'Frequently reused data (textures, weights, activations) stays on-chip; large L2 reduces trips to VRAM, saving bandwidth and energy.',
+      why:'Modern GPUs grew L2 dramatically because feeding thousands of cores is bandwidth-bound — cache is often the real performance lever.' },
+    analogy:'A tool tray right at the workbench, so workers don’t walk to the warehouse for every part.',
+    conn:['sm','memctrl','tensor'] },
+
+  memctrl:{ name:'Memory controllers', tag:'Gateways to VRAM', parent:'die',
+    quick:{ what:'The blocks that manage talking to the memory chips.',
+      how:'They schedule reads/writes across the wide memory bus efficiently.',
+      why:'Smart scheduling extracts maximum usable bandwidth from VRAM.' },
+    deep:{ what:'Per-partition controllers driving the GDDR/HBM bus, with the L2 slices sitting between them and the SMs.',
+      how:'They reorder and batch memory requests to maximize bus utilization and hide DRAM latency, mapping addresses across channels for parallelism.',
+      why:'Real-world bandwidth depends on controller efficiency, not just peak spec — they determine how close you get to theoretical VRAM bandwidth.' },
+    analogy:'The warehouse dispatchers who batch and route orders so trucks always run full.',
+    conn:['vram','l2','die'] },
+
+  sched:{ name:'Warp schedulers / control', tag:'Issues work to the cores', parent:'die',
+    quick:{ what:'The logic that decides which work each core does next.',
+      how:'It juggles many groups of threads, swapping in ready ones to stay busy.',
+      why:'Good scheduling keeps cores fed and hides memory delays.' },
+    deep:{ what:'Per-SM-partition warp schedulers + dispatch units, plus the GigaThread engine distributing thread blocks to SMs.',
+      how:'When a warp stalls on memory, the scheduler instantly issues another ready warp — latency hiding through massive thread-level parallelism.',
+      why:'Occupancy (enough warps in flight) is what lets GPUs tolerate VRAM latency; scheduling efficiency directly affects achieved throughput.' },
+    analogy:'A shift manager who always has the next ready job lined up so no one stands idle.',
+    conn:['sm','cuda','copy'] },
+
+  copy:{ name:'Copy engines', tag:'Move data in the background', parent:'die',
+    quick:{ what:'Dedicated units that shuffle data around without the cores.',
+      how:'They copy memory (e.g. over PCIe) while the cores keep computing.',
+      why:'Overlapping copies with compute hides transfer time.' },
+    deep:{ what:'DMA engines that handle host↔device and device↔device transfers independently of the SMs.',
+      how:'They execute asynchronous memcpys on separate queues, letting data movement overlap kernel execution — critical for streaming pipelines.',
+      why:'Hiding PCIe/NVLink transfer latency behind compute keeps the expensive SMs busy instead of stalling on I/O.' },
+    analogy:'Forklift drivers restocking shelves while the workers keep building, never pausing the line.',
+    conn:['pcie','memctrl','sched'] },
+
+  nvfabric:{ name:'Interconnect fabric / NVLink IF', tag:'On-die link to other GPUs', parent:'die',
+    quick:{ what:'The on-chip part that drives NVLink to other GPUs.',
+      how:'It pushes data off the die to neighbouring GPUs at huge speed.',
+      why:'It’s what lets GPUs cooperate on one massive model.' },
+    deep:{ what:'On-die NVLink controllers/PHYs (and the crossbar feeding them) that serialize traffic onto the external NVLink lanes.',
+      how:'They expose remote GPU memory and accelerate collective ops, coordinating with the L2/memory system so cross-GPU access behaves like extended memory.',
+      why:'Multi-GPU scaling efficiency hinges on this fabric — it sets how fast chips can share gradients and activations.' },
+    analogy:'The factory’s private rail terminal that links it to sister factories at full speed.',
+    conn:['nvlink','l2','memctrl'] },
+
+  nvhbi:{ name:'NV-HBI die-to-die link', tag:'Fuses two dies into one GPU (B200)', parent:'die',
+    quick:{ what:'The ultra-wide bridge joining the B200’s two dies.',
+      how:'It carries data between the two dies so fast they behave as a single chip.',
+      why:'It lets one GPU be bigger than a single piece of silicon can be.' },
+    deep:{ what:'NVIDIA’s on-package NV-HBI (High-Bandwidth Interface) linking the two reticle-limited Blackwell dies at ~10 TB/s — about an order of magnitude faster than NVLink.',
+      how:'Cache-coherent traffic crosses the bridge so the pair presents a single memory space and SM pool to software; neither die is a separate GPU.',
+      why:'Reticle limits cap how big one die can be — NV-HBI is what makes a "single" 208-billion-transistor GPU possible at all.' },
+    analogy:'A short, enormous bridge welding two factories into one site that shares one floor plan.',
+    conn:['die','l2','nvlink'] },
+
+  gpc:{ name:'Graphics Processing Cluster (GPC)', tag:'A cluster of SMs + raster engine', parent:'die',
+    quick:{ what:'A large block that groups many SMs together.',
+      how:'It bundles SMs with a shared raster engine and front-end.',
+      why:'GPCs are how the GPU scales up — GB202 has 12 of them.' },
+    deep:{ what:'The top-level compute partition. Full GB202 has 12 GPCs, each with 8 TPCs (= 16 SMs) and a dedicated raster engine — 192 SMs total; the RTX 5090 enables 170 (22 fused off). Each B200 die carries fewer GPCs (≈4), 8 across the two dies.',
+      how:'The GigaThread engine hands thread blocks to GPCs; each GPC rasterizes geometry and runs its 16 SMs largely independently.',
+      why:'Enabling/cutting GPCs and fusing SMs is how NVIDIA bins and scales the whole product stack from one die.' },
+    analogy:'A whole department in the factory — many identical workshops (SMs) sharing one receiving dock.',
+    conn:['sm','sched','l2'] },
+
+  media:{ name:'Media engines (NVENC / NVDEC)', tag:'Hardware video encode / decode', parent:'die',
+    quick:{ what:'Fixed-function blocks that encode and decode video.',
+      how:'They compress and decompress video without using the main cores.',
+      why:'They offload streaming, recording and playback efficiently.' },
+    deep:{ what:'Dedicated NVENC (encoder) and NVDEC (decoder) units — plus an optical-flow accelerator — sitting in the die’s central spine alongside the GigaThread front-end.',
+      how:'They process codecs (AV1, H.265, …) in hardware, freeing the SMs for rendering/compute; data-centre parts use them for transcoding at scale.',
+      why:'They handle video at a tiny fraction of the power and time it would take on CUDA cores — vital for creators, streamers and cloud transcode.' },
+    analogy:'An on-site specialist print shop, so the main workshops never stop to deal with video.',
+    conn:['l2','sched'] }
+};
+
+/* ============================================================================
+   SECTION 3 · SCENE, CAMERA, RENDERER, POST-PROCESSING
+============================================================================ */
+const canvas = document.getElementById('c');
+const stage  = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.25;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x05070d, 0.012);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+camera.position.set(9, 6, 13);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 4;
+controls.maxDistance = 40;
+controls.autoRotate = false;
+controls.autoRotateSpeed = 0.6;
+
+/* Image-based lighting: a neutral studio environment so the metallic PCB,
+   heatsink and gold contacts pick up realistic reflections instead of reading
+   flat. This is the single biggest contributor to the premium look. */
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55; // subtle — keeps the scene dark/technical
+
+/* Direct lighting — a cinematic dual-tone key/rim setup over the IBL fill */
+scene.add(new THREE.AmbientLight(0x4a5a7a, 0.35));
+scene.add(new THREE.HemisphereLight(0xaecbff, 0x141a2a, 0.5));
+const key = new THREE.DirectionalLight(0xf2f7ff, 2.4); key.position.set(7,13,9);
+key.castShadow = true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.near = 1; key.shadow.camera.far = 60;
+key.shadow.camera.left=-10; key.shadow.camera.right=10; key.shadow.camera.top=10; key.shadow.camera.bottom=-10;
+key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
+scene.add(key);
+const rimCyan = new THREE.DirectionalLight(0x57c8ff, 1.3); rimCyan.position.set(-11,2,-7); scene.add(rimCyan);
+const rimViol = new THREE.DirectionalLight(0x9d7bff, 1.1); rimViol.position.set(9,-3,-9); scene.add(rimViol);
+const fill = new THREE.PointLight(0x76e0ff, 0.5, 70); fill.position.set(0,-6,11); scene.add(fill);
+// Camera-side fill so viewer-facing surfaces are always lit
+const front = new THREE.DirectionalLight(0xffffff, 0.7);
+camera.add(front); front.position.set(2,3,5); scene.add(camera);
+
+/* Soft contact shadow plane + grid floor for grounding */
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(80,80),
+  new THREE.ShadowMaterial({opacity:0.45}));
+ground.rotation.x = -Math.PI/2; ground.position.y = -4.2; ground.receiveShadow = true; scene.add(ground);
+const grid2 = new THREE.GridHelper(60, 60, 0x1a2740, 0x10182a);
+grid2.position.y = -4.19; scene.add(grid2);
+
+/* Post-processing: bloom for glow (toggleable) */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(1,1), 0.55, 0.7, 0.85);
+composer.addPass(bloom);
+let bloomOn = false;
+
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w,h,false);
+  composer.setSize(w,h);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+
+/* ============================================================================
+   SECTION 4 · MATERIAL HELPERS
+============================================================================ */
+const MAT = {};
+function mat(color, opts={}){
+  return new THREE.MeshStandardMaterial({
+    color, metalness:opts.metalness??0.7, roughness:opts.roughness??0.45,
+    emissive:opts.emissive??0x000000, emissiveIntensity:opts.ei??1,
+    envMapIntensity:opts.env??1.3, // pick up the studio IBL reflections
+    transparent:false, opacity:1, ...(opts.extra||{})
+  });
+}
+// Enable shadow casting/receiving across a freshly-built model group
+function enableShadows(obj){
+  obj.traverse(o=>{ if(o.isMesh && o.material && o.material.type==='MeshStandardMaterial'){
+    o.castShadow = true; o.receiveShadow = true; } });
+}
+
+/* ============================================================================
+   SECTION 4b · PROCEDURAL TEXTURES (canvas-generated, fully self-contained)
+   ----------------------------------------------------------------------------
+   No external images. We draw realistic surfaces — brushed metal, PCB solder
+   mask + silkscreen, chip top-markings, silicon — and product-identifying text
+   / regulatory stickers on canvases and use them as CanvasTextures. Brand
+   artwork (the NVIDIA eye logo, exact GeForce logotype) is NOT reproduced;
+   plain identifying text is used instead. */
+const TEX={};
+function cvs(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
+function tex(c,rx,ry){ const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; if(rx) t.repeat.set(rx,ry||rx); t.anisotropy=8; return t; }
+
+function brushedMetal(base){
+  const c=cvs(256,256), g=c.getContext('2d'); g.fillStyle=base; g.fillRect(0,0,256,256);
+  for(let i=0;i<3000;i++){ const y=Math.random()*256, x=Math.random()*256, len=15+Math.random()*120;
+    g.strokeStyle=`rgba(${Math.random()<0.5?'255,255,255':'0,0,0'},${Math.random()*0.05})`;
+    g.lineWidth=1; g.beginPath(); g.moveTo(x,y); g.lineTo(x+len,y); g.stroke(); }
+  return c;
+}
+function pcbSurface(){
+  const c=cvs(1024,1024), g=c.getContext('2d');
+  g.fillStyle='#08251c'; g.fillRect(0,0,1024,1024);            // dark green solder mask
+  // mottled mask sheen
+  for(let i=0;i<600;i++){ g.fillStyle=`rgba(20,60,45,${Math.random()*0.25})`;
+    g.fillRect(Math.random()*1024,Math.random()*1024,Math.random()*120,Math.random()*120); }
+  // copper silkscreen traces (right-angle routing)
+  g.strokeStyle='rgba(150,180,150,0.10)'; g.lineWidth=2;
+  for(let i=0;i<120;i++){ let x=Math.random()*1024,y=Math.random()*1024; g.beginPath(); g.moveTo(x,y);
+    for(let s=0;s<4;s++){ if(Math.random()<0.5) x+=(Math.random()-0.5)*200; else y+=(Math.random()-0.5)*200; g.lineTo(x,y);} g.stroke(); }
+  // white silkscreen: component footprints + reference designators
+  g.fillStyle='rgba(225,232,220,0.55)'; g.font='14px monospace';
+  const des=['R','C','L','U','D','Q','J','TP','FB'];
+  for(let i=0;i<160;i++){ const x=Math.random()*1000, y=Math.random()*1000;
+    g.strokeStyle='rgba(225,232,220,0.30)'; g.lineWidth=1.5;
+    g.strokeRect(x,y, 8+Math.random()*24, 8+Math.random()*16);
+    if(Math.random()<0.5) g.fillText(des[(Math.random()*des.length)|0]+((Math.random()*99)|0), x, y-3); }
+  return c;
+}
+function chipMarking(top, code){
+  const c=cvs(256,256), g=c.getContext('2d');
+  g.fillStyle='#101218'; g.fillRect(0,0,256,256);
+  g.strokeStyle='rgba(255,255,255,0.06)'; g.lineWidth=8; g.strokeRect(8,8,240,240); // bevel
+  g.fillStyle='rgba(210,214,222,0.78)'; g.textAlign='center';
+  g.font='bold 30px Arial'; g.fillText(top, 128, 108);
+  g.font='17px monospace'; g.fillStyle='rgba(170,176,188,0.7)';
+  g.fillText(code, 128, 142); g.fillText('NV·'+((Math.random()*9000+1000)|0), 128, 166);
+  g.fillStyle='rgba(230,230,235,0.85)'; g.beginPath(); g.arc(34,222,7,0,7); g.fill(); // pin-1 dot
+  return c;
+}
+function siliconSurface(){
+  const c=cvs(512,512), g=c.getContext('2d');
+  g.fillStyle='#243154'; g.fillRect(0,0,512,512);
+  g.strokeStyle='rgba(120,180,255,0.18)'; g.lineWidth=1;
+  for(let i=0;i<=512;i+=18){ g.beginPath(); g.moveTo(i,0); g.lineTo(i,512); g.stroke();
+    g.beginPath(); g.moveTo(0,i); g.lineTo(512,i); g.stroke(); }
+  for(let i=0;i<200;i++){ g.fillStyle=`rgba(150,200,255,${Math.random()*0.1})`;
+    g.fillRect(Math.random()*512,Math.random()*512,18,18); }
+  g.fillStyle='#0a1020'; g.fillRect(8,8,40,40); // corner notch (orientation mark)
+  return c;
+}
+// Transparent decal canvas with one or more text lines (product names, stickers)
+function textDecal(lines, opt={}){
+  const w=opt.w||1024, h=opt.h||256, c=cvs(w,h), g=c.getContext('2d');
+  if(opt.bg){ g.fillStyle=opt.bg; g.fillRect(0,0,w,h); }
+  if(opt.border){ g.strokeStyle=opt.border; g.lineWidth=opt.bw||6; g.strokeRect(4,4,w-8,h-8); }
+  g.textAlign=opt.align||'center'; g.textBaseline='middle';
+  let y=h/(lines.length+1);
+  lines.forEach((ln,i)=>{ g.fillStyle=ln.color||'#e8eefc'; g.font=`${ln.weight||'bold'} ${ln.size||72}px ${ln.font||'Arial'}`;
+    g.fillText(ln.t, opt.align==='left'?20:w/2, y*(i+1)); });
+  return c;
+}
+function barcodeSticker(label, sub){
+  const w=512,h=256,c=cvs(w,h),g=c.getContext('2d');
+  g.fillStyle='#e9ebef'; g.fillRect(0,0,w,h);
+  g.strokeStyle='#9aa'; g.lineWidth=3; g.strokeRect(3,3,w-6,h-6);
+  g.fillStyle='#111'; g.textAlign='left'; g.font='bold 30px Arial'; g.fillText(label, 18, 40);
+  g.font='16px monospace'; g.fillStyle='#333'; g.fillText(sub, 18, 70);
+  // barcode
+  let x=18; while(x<w-30){ const bw=2+Math.random()*6; g.fillStyle='#111'; g.fillRect(x,150,bw,70); x+=bw+2+Math.random()*4; }
+  g.font='14px monospace'; g.fillStyle='#111'; g.fillText('S/N '+((Math.random()*1e9)|0), 18, 240);
+  // tiny regulatory glyphs
+  g.font='bold 18px Arial'; g.textAlign='right'; g.fillText('CE  FC  ⚠', w-16, 40);
+  return c;
+}
+// A flat decal plane (sticker / printed text) that sits just above a surface.
+function decal(canvas, w, h, x,y,z, rotY){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),
+    new THREE.MeshBasicMaterial({map:tex(canvas), transparent:true, depthWrite:false}));
+  m.position.set(x,y,z); if(rotY) m.rotation.y=rotY; m.renderOrder=2; return m;
+}
+// tiny helpers used by the board builder
+function posMesh(geo, m, x,y,z){ const o=new THREE.Mesh(geo,m); o.position.set(x,y,z); return o; }
+const MAT_FPC=()=>new THREE.MeshStandardMaterial({color:0xb8843a,metalness:0.2,roughness:0.6,envMapIntensity:1.0});
+function fpc(x1,y1,x2,y2,z){ // a flat-flex (FPC) ribbon cable bridging two boards
+  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);
+  const m=new THREE.Mesh(new THREE.BoxGeometry(len,0.32,0.02), MAT_FPC());
+  m.position.set((x1+x2)/2,(y1+y2)/2,z); m.rotation.z=Math.atan2(dy,dx); return m;
+}
+function makeMaterials(){
+  MAT.shroud = mat(0x2b3650,{metalness:0.55,roughness:0.45});
+  MAT.shroudTrim = mat(0x4a5e8c,{metalness:0.9,roughness:0.3});
+  MAT.fan = mat(0x233047,{metalness:0.4,roughness:0.55});
+  MAT.fanHub = mat(0x35446a,{metalness:0.75,roughness:0.3});
+  MAT.heatsink = mat(0x9aa6bd,{metalness:0.95,roughness:0.25});
+  MAT.vapor = mat(0xc8702e,{metalness:0.95,roughness:0.2});
+  MAT.pcb = mat(0x0a3326,{metalness:0.3,roughness:0.7});
+  MAT.pcbTrace = mat(0xc9a23a,{metalness:0.9,roughness:0.3,emissive:0x3a2f08,ei:0.4});
+  MAT.pkg = mat(0x14171f,{metalness:0.6,roughness:0.5});
+  MAT.die = mat(0x2a3550,{metalness:0.85,roughness:0.25,emissive:0x10203a,ei:0.8});
+  MAT.vram = mat(0x16181f,{metalness:0.6,roughness:0.45});
+  MAT.vramHbm = mat(0x241a30,{metalness:0.7,roughness:0.35,emissive:0x160a24,ei:0.5});
+  MAT.choke = mat(0x101218,{metalness:0.4,roughness:0.7});
+  MAT.mosfet = mat(0x0c0e13,{metalness:0.5,roughness:0.6});
+  MAT.cap = mat(0x1c2330,{metalness:0.7,roughness:0.4});
+  MAT.gold = mat(0xd9b24a,{metalness:1,roughness:0.25,emissive:0x2a2008,ei:0.5});
+  MAT.nvlink = mat(0x3a2a5a,{metalness:0.8,roughness:0.3,emissive:0x2a1a4a,ei:0.6});
+  MAT.port = mat(0x0b0d12,{metalness:0.5,roughness:0.6});
+  MAT.backplate = mat(0x1c2536,{metalness:0.7,roughness:0.4});
+  // die internals
+  MAT.smTile = mat(0x1c2a44,{metalness:0.7,roughness:0.35,emissive:0x0c1830,ei:0.7});
+  MAT.cudaTile = mat(0x144a6a,{metalness:0.6,roughness:0.35,emissive:0x0a3550,ei:0.9});
+  MAT.tensorTile = mat(0x6a3a8a,{metalness:0.6,roughness:0.35,emissive:0x3a1a5a,ei:1.0});
+  MAT.rtTile = mat(0x2a6a4a,{metalness:0.6,roughness:0.35,emissive:0x144a2a,ei:0.9});
+  MAT.l2Tile = mat(0x8a6a2a,{metalness:0.6,roughness:0.35,emissive:0x5a3a0a,ei:0.8});
+  MAT.memTile = mat(0x8a3a3a,{metalness:0.6,roughness:0.35,emissive:0x5a1a1a,ei:0.8});
+
+  // --- apply procedural surface textures (colour baked into the canvas → tint white) ---
+  const skin=(m,canvas,rx,ry)=>{ m.map=tex(canvas,rx,ry); m.color.setHex(0xffffff); };
+  skin(MAT.heatsink, brushedMetal('#9aa6bd'), 3,3);
+  skin(MAT.vapor,    brushedMetal('#c8702e'), 2,2);
+  skin(MAT.shroud,   brushedMetal('#2b3650'), 2,2);
+  skin(MAT.shroudTrim,brushedMetal('#4a5e8c'),1,1);
+  skin(MAT.fanHub,   brushedMetal('#35446a'), 1,1);
+  skin(MAT.pcb,      pcbSurface());
+  skin(MAT.die,      siliconSurface());
+  skin(MAT.vram,     chipMarking('GDDR7','D7X · 2GB'));
+  skin(MAT.vramHbm,  chipMarking('HBM3e','8-Hi stack'));
+}
+
+/* ============================================================================
+   SECTION 5 · GPU MODEL BUILDER
+   ----------------------------------------------------------------------------
+   The card is built vertically (PCB in the XY plane). Layers stack along +Z.
+   Each part is registered with an explode direction so the slider can pull the
+   card apart. userData.cid links a mesh to the COMP knowledge base.
+============================================================================ */
+const root = new THREE.Group();          // whole GPU
+const dieInternals = new THREE.Group();  // revealed when drilling into die
+dieInternals.visible = false;
+scene.add(root);
+scene.add(dieInternals);
+
+const parts = [];        // selectable meshes (top-level)
+const explodables = [];  // {obj, dir} for explode animation
+const labelDefs = [];    // {cid, anchor(Vector3 in world via obj)}
+
+let W = 6.6, H = 2.7;  // overall card footprint (reassigned per profile)
+
+function reg(obj, cid, explodeDir){
+  obj.userData.cid = cid;
+  obj.traverse(o=>{ if(o.isMesh) o.userData.cid = cid; });
+  parts.push(obj);
+  if(explodeDir) explodables.push({obj, base:obj.position.clone(), dir:explodeDir});
+}
+
+/* Functional PCB trace bundle: `count` parallel copper traces from a→b on the
+   board plane. Used to route memory byte-lanes, power planes and PCIe lanes
+   so the circuitry reads correctly (exact proprietary routing isn't public). */
+function traceMat(){ return MAT.pcbTrace; }
+function traceBundle(parent, ax, ay, bx, by, count, gauge, z){
+  const dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy), ang=Math.atan2(dy,dx);
+  const px=-dy/len, py=dx/len; // perpendicular unit
+  for(let i=0;i<count;i++){
+    const off=(i-(count-1)/2)*gauge*2.1;
+    const t=new THREE.Mesh(new THREE.BoxGeometry(len, gauge, 0.016), traceMat());
+    t.position.set((ax+bx)/2+px*off, (ay+by)/2+py*off, z??0.07);
+    t.rotation.z=ang; parent.add(t);
+  }
+}
+
+let currentProfile = PROFILES.consumer;
+
+function buildGPU(profile){
+  // clear
+  while(root.children.length) root.remove(root.children[0]);
+  parts.length = 0; explodables.length = 0; labelDefs.length = 0;
+
+  const isDC = profile.id==='datacenter';
+  // Card footprint. 5090 FE = wide 2-slot card with a COMPACT central PCB + two
+  // daughterboards (PCIe riser, display breakout) on FPC ribbons. B200 = square SXM module.
+  W = isDC ? 5.0 : 6.6;
+  H = isDC ? 5.0 : 2.7;
+  const pcbW = isDC ? W-0.4 : 3.4;   // FE central PCB is compact; cooler + daughterboards span the rest
+  const pcbH = isDC ? H-0.3 : 2.2;
+
+  /* ---- Backplate / module baseplate ---- */
+  const back = new THREE.Mesh(new THREE.BoxGeometry(W+0.2, H+0.2, 0.08), MAT.backplate);
+  back.position.set(0,0,-0.35);
+  reg(back,'pcb', new THREE.Vector3(0,0,-1.4));
+  root.add(back);
+  // regulatory / serial sticker on the rear of the backplate
+  back.add(decal(barcodeSticker(isDC?'NVIDIA B200':'GeForce RTX 5090',
+    isDC?'P/N 935-24287-0000 · SXM':'P/N 900-1G144-2530 · FE'),
+    1.15,0.58, W/2-1.0, -H/2+0.55, -0.05, Math.PI));
+  // 5090 FE double-flow-through: backplate cut-outs at BOTH ends so air exits the rear
+  if(!isDC){ [-2.05,2.05].forEach(fx=>{ const cut=new THREE.Mesh(new THREE.RingGeometry(0.55,1.0,40),
+      new THREE.MeshBasicMaterial({color:0x05070d,side:THREE.DoubleSide})); cut.position.set(fx,0,-0.06); back.add(cut); }); }
+
+  /* ---- PCB (compact central board) with FUNCTIONAL traces routed by purpose ---- */
+  const pcb = new THREE.Group();
+  const board = new THREE.Mesh(new THREE.BoxGeometry(pcbW, pcbH, 0.12), MAT.pcb);
+  pcb.add(board);
+  pcb.position.set(0,0,0);
+  reg(pcb,'pcb', new THREE.Vector3(0,0,-0.6));
+  root.add(pcb);
+  labelDefs.push({cid:'pcb', pos:new THREE.Vector3(-pcbW/2+0.45,-pcbH/2+0.25,0.1)});
+
+  /* ---- GPU package + die(s), centered ---- */
+  const pkgW = isDC ? 3.9 : 1.5, pkgH = isDC ? 3.0 : 1.5;
+  const pkg = new THREE.Mesh(new THREE.BoxGeometry(pkgW,pkgH,0.16), MAT.pkg);
+  pkg.position.set(0,0,0.16);
+  reg(pkg,'gpupkg', new THREE.Vector3(0,0,0.9));
+  root.add(pkg);
+  labelDefs.push({cid:'gpupkg', pos:new THREE.Vector3(0,-pkgH/2-0.22,0.3)});
+
+  // dies: one square GB202 (5090) or two reticle-limited dies joined by NV-HBI (B200)
+  const dieXs = isDC ? [-0.95, 0.95] : [0];
+  const dieW = isDC ? 1.2 : 1.0, dieH = isDC ? 2.0 : 1.0;
+  dieXs.forEach(dx=>{
+    const die = new THREE.Mesh(new THREE.BoxGeometry(dieW,dieH,0.1), MAT.die);
+    die.position.set(dx,0,0.28);
+    reg(die,'die', new THREE.Vector3(0,0,1.5));
+    root.add(die);
+  });
+  if(isDC){ // NV-HBI die-to-die bridge along the central seam where the two dies meet
+    const hbi=new THREE.Mesh(new THREE.BoxGeometry(0.28,2.0,0.11), MAT.nvlink);
+    hbi.position.set(0,0,0.29); reg(hbi,'nvhbi', new THREE.Vector3(0,0,1.5)); root.add(hbi);
+    labelDefs.push({cid:'nvhbi', pos:new THREE.Vector3(0,1.15,0.4)});
+  }
+  labelDefs.push({cid:'die', pos:new THREE.Vector3(dieXs[0], dieH/2+0.22, 0.4)});
+
+  /* ---- VRAM ---- */
+  const vramGroup = new THREE.Group();
+  if(isDC){
+    // B200: 8 HBM3e stacks — a row of 4 along the TOP edge and 4 along the BOTTOM,
+    // with the two dies sandwiched in the middle band (per NVIDIA's package layout).
+    const xs=[-1.5,-0.5,0.5,1.5];
+    [1.35,-1.35].forEach(yy=> xs.forEach(xx=>{
+      const m=new THREE.Mesh(new THREE.BoxGeometry(0.78,0.78,0.26), MAT.vramHbm);
+      m.position.set(xx,yy,0.2); vramGroup.add(m);
+      const ddx = xx<0?-0.95:0.95; // interposer traces to the nearer die
+      traceBundle(pcb, xx, yy>0?yy-0.42:yy+0.42, ddx, yy>0?0.95:-0.95, 7, 0.018, 0.07);
+    }));
+  } else {
+    // RTX 5090 FE: 16 GDDR7 in the signature asymmetric ring — Left 5 · Right 5 · Top 4 · Bottom 2
+    const mods=[];
+    [-0.9,-0.45,0,0.45,0.9].forEach(y=>{ mods.push([-1.02,y]); mods.push([1.02,y]); }); // L5 + R5
+    [-0.55,-0.18,0.18,0.55].forEach(x=>mods.push([x,0.98]));                              // Top 4
+    [-0.3,0.3].forEach(x=>mods.push([x,-0.98]));                                          // Bottom 2
+    mods.forEach(p=>{
+      const m=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.26,0.13), MAT.vram);
+      m.position.set(p[0],p[1],0.15); vramGroup.add(m);
+      const ex=Math.sign(p[0]||1)*0.5, ey=Math.abs(p[1])>0.6?Math.sign(p[1])*0.5:p[1];
+      traceBundle(pcb, p[0],p[1], ex,ey, 6, 0.011, 0.065); // byte-lane bundle to the die edge
+    });
+  }
+  reg(vramGroup,'vram', new THREE.Vector3(0,0,0.7));
+  root.add(vramGroup);
+  labelDefs.push({cid:'vram', pos:new THREE.Vector3(isDC?-1.5:1.02, isDC?1.35:0.98, 0.26)});
+
+  /* ---- Power delivery (VRM) ---- */
+  const vrm = new THREE.Group();
+  if(isDC){
+    // B200: power stages along the right package edge + a decoupling-cap ring around the package
+    for(let i=0;i<12;i++){ const col=Math.floor(i/6), row=i%6, x=W/2-0.4-col*0.42, y=-1.5+row*0.6;
+      vrm.add(posMesh(new THREE.BoxGeometry(0.3,0.26,0.22),MAT.choke,x,y,0.18));
+      vrm.add(posMesh(new THREE.BoxGeometry(0.14,0.26,0.1),MAT.mosfet,x-0.26,y,0.13));
+      traceBundle(pcb, x-0.26,y, 1.0, y*0.4, 3,0.03,0.06); }
+    const cn=28; for(let i=0;i<cn;i++){ const a=i/cn*Math.PI*2, rx=pkgW/2+0.18, ry=pkgH/2+0.18;
+      vrm.add(posMesh(new THREE.BoxGeometry(0.12,0.12,0.14),MAT.cap, Math.cos(a)*rx, Math.sin(a)*ry, 0.16)); }
+    labelDefs.push({cid:'vrm', pos:new THREE.Vector3(W/2-0.4,-1.85,0.3)});
+  } else {
+    // 5090 FE: VRM wraps the GPU on 3 sides (left + right columns + a bottom row), outside the memory ring
+    const stage=(x,y)=>{ vrm.add(posMesh(new THREE.BoxGeometry(0.26,0.24,0.2),MAT.choke,x,y,0.18));
+      vrm.add(posMesh(new THREE.BoxGeometry(0.12,0.24,0.1),MAT.mosfet,x,y,0.30)); };
+    [-0.75,-0.25,0.25,0.75].forEach(y=>{ stage(-1.5,y); stage(1.5,y); });  // L + R columns
+    [-0.95,-0.45,0.45,0.95].forEach(x=>stage(x,-1.28));                     // bottom row
+    [-1.5,1.5].forEach(x=>{ const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.26,12),MAT.cap);
+      cap.rotation.x=Math.PI/2; cap.position.set(x,1.08,0.2); vrm.add(cap); });
+    traceBundle(pcb, -1.3,0, -0.55,0, 4,0.03,0.06); traceBundle(pcb, 1.3,0, 0.55,0, 4,0.03,0.06);
+    labelDefs.push({cid:'vrm', pos:new THREE.Vector3(1.5,1.3,0.3)});
+  }
+  reg(vrm,'vrm', new THREE.Vector3(isDC?1.0:0, isDC?0:-1.0, 0.6));
+  root.add(vrm);
+
+  /* ---- Power input ---- */
+  if(profile.id==='consumer'){
+    // 5090 FE: a single 16-pin 12V-2×6, angled + recessed near the top-centre of the central PCB
+    const pc=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.3,0.4), MAT.port);
+    pc.add(body);
+    for(let i=0;i<12;i++){ pc.add(posMesh(new THREE.BoxGeometry(0.05,0.09,0.42),MAT.gold,
+      -0.42+(i%6)*0.17, i<6?0.06:-0.06, 0.04)); }
+    pc.position.set(0.0, pcbH/2-0.05, 0.26); pc.rotation.z=-0.45;
+    body.add(decal(textDecal([{t:'12V-2×6 · 600W',size:62,color:'#ffd36b'}],{w:512,h:120}),
+      0.9,0.2, 0, 0.3, 0.05)); // rating printed beside the connector
+    reg(pc,'power', new THREE.Vector3(0.2,1.4,0.4)); root.add(pc);
+    labelDefs.push({cid:'power', pos:new THREE.Vector3(0.0,pcbH/2+0.4,0.3)});
+  }
+
+  /* ---- NVLink (B200: SXM mezzanine carrying NVLink) ---- */
+  if(profile.nvlink){
+    const nv=new THREE.Group();
+    const pad=new THREE.Mesh(new THREE.BoxGeometry(W-1.2,0.7,0.06), MAT.nvlink);
+    nv.add(pad);
+    for(let i=0;i<28;i++){ const f=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.6,0.07),MAT.gold);
+      f.position.set(-(W-1.4)/2 + i*((W-1.4)/27), 0, 0.02); pad.add(f); }
+    nv.position.set(0,-H/2+0.45,-0.34);  // on the back of the module
+    reg(nv,'nvlink', new THREE.Vector3(0,-1.0,-0.8)); root.add(nv);
+    labelDefs.push({cid:'nvlink', pos:new THREE.Vector3(-1.4,-H/2+0.45,-0.1)});
+  }
+
+  /* ---- Host interface: PCIe ×16 edge (5090) or SXM pad field (B200) ---- */
+  const pcie=new THREE.Group();
+  if(isDC){
+    const field=new THREE.Mesh(new THREE.BoxGeometry(W-1.2,0.8,0.05), MAT.pkg);
+    field.position.set(0,H/2-0.5,-0.34); pcie.add(field);
+    for(let r=0;r<3;r++)for(let i=0;i<26;i++){ const f=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.16,0.06),MAT.gold);
+      f.position.set(-(W-1.5)/2+i*((W-1.5)/25), H/2-0.7+r*0.22, -0.33); pcie.add(f); }
+    reg(pcie,'pcie', new THREE.Vector3(0,1.0,-0.8));
+    labelDefs.push({cid:'pcie', pos:new THREE.Vector3(1.4,H/2-0.5,-0.1)});
+  } else {
+    // 5090 FE: PCIe ×16 lives on a separate RIGHT-side riser daughterboard, joined to the
+    // central PCB by an FPC ribbon (the FE's modular 3-board design).
+    const riser=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.65,0.1), MAT.pcb);
+    riser.position.set(0.4,-pcbH/2-0.55,0); pcie.add(riser);
+    const pbar=new THREE.Mesh(new THREE.BoxGeometry(3.0,0.45,0.12), MAT.pkg);
+    pbar.position.set(0.4,-H/2-0.02,0); pcie.add(pbar);
+    for(let i=0;i<32;i++){ pcie.add(posMesh(new THREE.BoxGeometry(0.07,0.38,0.13), MAT.gold,
+      -1.1+i*0.094, -H/2-0.04, 0.005)); }
+    pcie.add(fpc(0.4,-pcbH/2+0.05, 0.4,-pcbH/2-0.4, 0.13)); // ribbon: central PCB → riser
+    traceBundle(pcb, 0,-0.55, 0,-pcbH/2+0.1, 12, 0.013, 0.065);
+    reg(pcie,'pcie', new THREE.Vector3(0,-1.6,0));
+    labelDefs.push({cid:'pcie', pos:new THREE.Vector3(0.4,-H/2-0.28,0.2)});
+  }
+  root.add(pcie);
+
+  /* ---- Display outputs (5090 only): on a LEFT breakout daughterboard via FPC ribbon ---- */
+  if(profile.displayOut){
+    const io=new THREE.Group();
+    const dboard=new THREE.Mesh(new THREE.BoxGeometry(0.7,2.0,0.1), MAT.pcb);
+    dboard.position.set(-pcbW/2-1.0,0,0); io.add(dboard);              // separate I/O breakout board
+    const bracket=new THREE.Mesh(new THREE.BoxGeometry(0.18,H+0.2,1.0), MAT.shroudTrim);
+    bracket.position.set(-W/2-0.1,0,0.3); io.add(bracket);
+    for(let i=0;i<4;i++){ io.add(posMesh(new THREE.BoxGeometry(0.16,0.3,i===3?0.62:0.5),MAT.port,
+      -W/2-0.12,0.85-i*0.5,0.3)); } // 3 DP + 1 HDMI (HDMI wider)
+    io.add(fpc(-pcbW/2-0.05,0.2, -pcbW/2-0.7,0.2, 0.13));             // ribbon: central PCB → breakout
+    reg(io,'display', new THREE.Vector3(-1.6,0,0.3)); root.add(io);
+    labelDefs.push({cid:'display', pos:new THREE.Vector3(-W/2-0.45,1.25,0.4)});
+  }
+
+  /* ---- Heatsink + vapor chamber (cold plate on B200) ---- */
+  const hs=new THREE.Group();
+  const vc=new THREE.Mesh(new THREE.BoxGeometry(isDC?pkgW+0.4:2.0, isDC?pkgH+0.4:2.0,0.12), MAT.vapor);
+  vc.position.set(0,0,0.45); hs.add(vc);
+  const finCount=isDC?30:22;
+  for(let i=0;i<finCount;i++){
+    const fin=new THREE.Mesh(new THREE.BoxGeometry(W-0.4,H-0.2,0.03), MAT.heatsink);
+    fin.position.set(0,0,0.55+i*(isDC?0.04:0.03)); hs.add(fin);
+  }
+  hs.position.set(0,0,0);
+  reg(hs,'heatsink', new THREE.Vector3(0,0,1.0)); root.add(hs);
+  labelDefs.push({cid:'heatsink', pos:new THREE.Vector3(-W/2+0.6,H/2-0.3,1.0)});
+
+  /* ---- Fans: 5090 FE double flow-through — TWO axial fans BOTH on the front face,
+       one over each END fin stack (centre is solid over the vapor chamber). B200 is passive. ---- */
+  if(profile.fans>0){
+    const fanGroup=new THREE.Group(); fanGroup.userData.blades=[];
+    [-2.0, 2.0].forEach(fx=>{
+      const f=new THREE.Group();
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(1.02,0.08,12,32), MAT.fanHub); f.add(ring);
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.1,20), MAT.fanHub);
+      hub.rotation.x=Math.PI/2; f.add(hub);
+      const blades=new THREE.Group();
+      for(let b=0;b<9;b++){ const blade=new THREE.Mesh(new THREE.BoxGeometry(0.88,0.16,0.02),MAT.fan);
+        blade.position.x=0.52; blade.rotation.z=0.4;
+        const holder=new THREE.Group(); holder.rotation.z=b*(Math.PI*2/9); holder.add(blade); blades.add(holder); }
+      f.add(blades); fanGroup.userData.blades.push(blades);
+      f.position.set(fx,0,1.4);
+      fanGroup.add(f);
+    });
+    reg(fanGroup,'fans', new THREE.Vector3(0,0,1.6)); root.add(fanGroup);
+    labelDefs.push({cid:'fans', pos:new THREE.Vector3(2.0,0,1.5)});
+  }
+
+  /* ---- Shroud / module frame ---- */
+  const shroud=new THREE.Group();
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(W+0.3,H+0.3,0.18), MAT.shroud);
+  frame.position.set(0,0, profile.fans>0?1.5:1.55); shroud.add(frame);
+  if(profile.fans>0){ // two front fan cut-outs over the end stacks (centre stays solid over the vapor chamber)
+    [-2.0,2.0].forEach(fx=>{ const hole=new THREE.Mesh(new THREE.RingGeometry(0.95,1.2,40),
+      new THREE.MeshBasicMaterial({color:0x000000,side:THREE.DoubleSide}));
+      hole.position.set(fx,0,1.6); shroud.add(hole); });
+  }
+  const trim=new THREE.Mesh(new THREE.BoxGeometry(W+0.32,0.1,0.2), MAT.shroudTrim);
+  trim.position.set(0,H/2+0.1, profile.fans>0?1.5:1.55); shroud.add(trim);
+  // product-identifying text printed on the shroud (plain text, not brand logo artwork)
+  if(isDC){
+    shroud.add(decal(textDecal([{t:'NVIDIA  B200',size:96,color:'#eef3fb'},
+      {t:'BLACKWELL',size:52,color:'#9d7bff'}],{w:1024,h:512}), 2.6,1.0, -0.3, 0.6, 1.66));
+  } else {
+    shroud.add(decal(textDecal([{t:'GEFORCE RTX 5090',size:66,color:'#e6edf7'}],{w:1024,h:128}),
+      3.0,0.32, 0, H/2+0.1, 1.62));
+    shroud.add(decal(textDecal([{t:'RTX',size:90,color:'#76e0ff'}],{w:256,h:256}),
+      0.5,0.5, -W/2+0.6, 0, 1.61)); // accent mark on the shroud end
+  }
+  reg(shroud,'shroud', new THREE.Vector3(0,0,2.2)); root.add(shroud);
+  labelDefs.push({cid:'shroud', pos:new THREE.Vector3(-W/2,H/2+0.3,1.6)});
+
+  root.position.set(0,0.5,0);
+  enableShadows(root);
+  document.getElementById('partCount').textContent = parts.length;
+
+  buildDieInternals(profile);
+  rebuildLabels();
+  buildSimGraph(profile);
+}
+
+/* ============================================================================
+   SECTION 6 · DIE INTERNALS (drill-down model)
+============================================================================ */
+const internalParts = [];
+function diMesh(geo, material, x,y,z, cid){ const m=new THREE.Mesh(geo, material); m.position.set(x,y,z);
+  if(cid){ m.userData.cid=cid; internalParts.push(m); } dieInternals.add(m); return m; }
+function addMem(x,y){ diMesh(new THREE.BoxGeometry(0.8,0.34,0.15), MAT.memTile, x,y,0.2, 'memctrl'); }
+
+// A Graphics Processing Cluster: a 4×4 grid of 16 SM cells + a raster-engine strip.
+function buildGPC(cx,cy,w,h){
+  diMesh(new THREE.BoxGeometry(w,h,0.12), MAT.smTile, cx,cy,0.16, 'gpc');
+  const pad=0.07, gw=(w-pad*2)/4, gh=(h-pad*2-0.1)/4;
+  for(let j=0;j<4;j++)for(let i=0;i<4;i++)
+    diMesh(new THREE.BoxGeometry(gw*0.8,gh*0.8,0.14), MAT.cudaTile,
+      cx-w/2+pad+gw*(i+0.5), cy-h/2+pad+gh*(j+0.5), 0.22, 'sm');
+  diMesh(new THREE.BoxGeometry(w-pad*2,0.08,0.13), MAT.l2Tile, cx, cy+h/2-0.1, 0.22, 'sched'); // raster engine
+}
+
+// One die floorplan: central GigaThread/media spine + L2 bands, GPCs flanking,
+// memory controllers ringing the edges, host I/O on the bottom (GB202) — per NVIDIA's block diagram.
+function buildOneDie(cx, profile){
+  const dc=profile.dualDie, hw=dc?2.4:3.5, hh=2.6;
+  diMesh(new THREE.BoxGeometry(hw*2,hh*2,0.16), mat(0x0c1018,{metalness:0.6,roughness:0.5}), cx,0,0.06);
+  // central vertical spine: GigaThread (top) · NVENC/NVDEC media (mid) · copy/NVLink-IF (bottom)
+  diMesh(new THREE.BoxGeometry(0.5,0.6,0.15), MAT.l2Tile, cx, hh-0.7, 0.2, 'sched');
+  diMesh(new THREE.BoxGeometry(0.5,hh*0.95,0.15), MAT.tensorTile, cx, -0.1, 0.2, 'media');
+  diMesh(new THREE.BoxGeometry(0.5,0.5,0.15), dc?MAT.nvlink:MAT.smTile, cx, -hh+0.5, 0.2, dc?'nvfabric':'copy');
+  // L2 cache bands flanking the spine
+  [-0.52,0.52].forEach(dx=> diMesh(new THREE.BoxGeometry(0.34,hh*1.55,0.16), MAT.l2Tile, cx+dx,0,0.22, 'l2'));
+  if(!dc){
+    // GB202: 12 GPCs = 6 left + 6 right of the central L2 (2 cols × 3 rows each side)
+    [-2.32,-1.4,1.4,2.32].forEach(gx=> [1.5,0,-1.5].forEach(gy=> buildGPC(cx+gx,gy,0.82,0.88)));
+    // GDDR7 controllers ring the top + left + right edges (16 × 32-bit)
+    for(let i=0;i<6;i++) addMem(cx-2.5+i*1.0, 2.35);
+    for(let i=0;i<5;i++){ addMem(cx-3.2, -2.0+i*1.0); addMem(cx+3.2, -2.0+i*1.0); }
+    // host I/O along the bottom edge: PCIe 5.0 + display engine
+    diMesh(new THREE.BoxGeometry(1.5,0.34,0.15), MAT.gold, cx-1.0,-2.35,0.2, 'pcie');
+    diMesh(new THREE.BoxGeometry(1.2,0.34,0.15), MAT.shroudTrim, cx+1.15,-2.35,0.2, 'display');
+  } else {
+    // GB100 (per B200 die): 4 GPCs (2×2); HBM3e controllers on the top & bottom edges
+    [-1.3,1.3].forEach(gx=> [1.05,-1.05].forEach(gy=> buildGPC(cx+gx,gy,0.95,1.0)));
+    [-0.9,0.9].forEach(gx=>{ addMem(cx+gx,2.35); addMem(cx+gx,-2.35); });
+  }
+}
+
+// A zoomed, representative Streaming Multiprocessor: 4 partitions × (32 CUDA + warp scheduler
+// + 1 Tensor Core) = 128 CUDA / 4 Tensor, plus 1 RT Core and L1/shared — the real Blackwell SM.
+function buildSMDetail(cx,cy,profile){
+  const SW=3.9, SH=2.7;
+  diMesh(new THREE.BoxGeometry(SW,SH,0.12), mat(0x0c1018,{metalness:0.6,roughness:0.5}), cx,cy,0.06);
+  diMesh(new THREE.BoxGeometry(SW-0.1,SH-0.1,0.14), MAT.smTile, cx,cy,0.1, 'sm');
+  dieInternals.add(decal(textDecal([{t:'Representative SM',size:50,color:'#9fb0d0'}],{w:768,h:96}),
+    2.0,0.25, cx, cy+SH/2+0.22, 0.2));
+  [[-0.93,0.58],[0.93,0.58],[-0.93,-0.58],[0.93,-0.58]].forEach(p=>{
+    const px=cx+p[0], py=cy+p[1];
+    diMesh(new THREE.BoxGeometry(1.62,1.05,0.13), mat(0x14203a,{metalness:0.6,roughness:0.4}), px,py,0.14);
+    for(let j=0;j<4;j++)for(let i=0;i<8;i++)  // 32 CUDA cores per partition
+      diMesh(new THREE.BoxGeometry(0.13,0.1,0.1), MAT.cudaTile, px-0.7+i*0.2, py+0.32-j*0.155, 0.2, 'cuda');
+    diMesh(new THREE.BoxGeometry(1.42,0.1,0.12), MAT.l2Tile, px,py-0.21,0.2, 'sched');   // warp scheduler + dispatch
+    diMesh(new THREE.BoxGeometry(1.42,0.22,0.14), MAT.tensorTile, px,py-0.41,0.2, 'tensor'); // 1 Tensor Core
+  });
+  diMesh(new THREE.BoxGeometry(0.5,0.5,0.16), MAT.rtTile, cx,cy+0.3,0.24, 'rt');   // 1 RT Core
+  diMesh(new THREE.BoxGeometry(0.5,0.45,0.16), MAT.l2Tile, cx,cy-0.28,0.24, 'l2'); // 128 KB L1 / shared
+  if(profile.dualDie) diMesh(new THREE.BoxGeometry(0.5,0.16,0.16), MAT.memTile, cx,cy-0.6,0.24, 'l2'); // TMEM (data-centre)
+}
+
+function buildDieInternals(profile){
+  while(dieInternals.children.length) dieInternals.remove(dieInternals.children[0]);
+  internalParts.length = 0;
+  dieInternals.position.copy(root.position).add(new THREE.Vector3(0,0,0.28));
+
+  if(profile.dualDie){
+    buildOneDie(-2.4, profile); buildOneDie(2.4, profile);
+    // NV-HBI die-to-die link runs along the seam where the two dies meet
+    diMesh(new THREE.BoxGeometry(0.5,5.0,0.2), MAT.nvlink, 0,0,0.24, 'nvhbi');
+    buildSMDetail(0,-5.0,profile);
+  } else {
+    buildOneDie(0, profile);
+    buildSMDetail(0,-5.0,profile);
+  }
+  enableShadows(dieInternals);
+}
+
+/* ============================================================================
+   SECTION 7 · LABELS (CSS sprites projected from 3D anchors)
+============================================================================ */
+let labelEls = [];
+const overlay = document.getElementById('overlay');
+function rebuildLabels(){
+  labelEls.forEach(e=>e.remove()); labelEls=[];
+  labelDefs.forEach(d=>{
+    const el=document.createElement('div');
+    el.textContent = COMP[d.cid]?.name || d.cid;
+    el.style.cssText='position:absolute;pointer-events:auto;cursor:pointer;font-size:10.5px;'+
+      'padding:2px 7px;border:1px solid #2c3d63;border-radius:6px;background:#070b14d0;'+
+      'color:#cfe2ff;white-space:nowrap;transform:translate(-50%,-50%);transition:opacity .2s;'+
+      'box-shadow:0 0 0 1px #0006;';
+    el.addEventListener('click',()=>select(d.cid));
+    overlay.appendChild(el);
+    labelEls.push(Object.assign(el,{_def:d}));
+  });
+}
+let labelsVisible = true;
+function updateLabels(){
+  const w=stage.clientWidth,h=stage.clientHeight;
+  labelEls.forEach(el=>{
+    if(!labelsVisible || dieInternals.visible){ el.style.display='none'; return; }
+    const d=el._def;
+    // find current world position from the part's group (account for explode offset)
+    const ex = explodables.find(e=>e.obj.userData.cid===d.cid);
+    const v = d.pos.clone();
+    if(ex){ v.add(ex.obj.position.clone().sub(ex.base)); }
+    v.add(root.position);
+    const p=v.clone().project(camera);
+    if(p.z>1){ el.style.display='none'; return; }
+    el.style.display='block';
+    el.style.left=((p.x*0.5+0.5)*w)+'px';
+    el.style.top=((-p.y*0.5+0.5)*h)+'px';
+    el.style.opacity = (selected===d.cid)?'1':'0.78';
+    el.style.borderColor = (selected===d.cid)?'#76e0ff':'#2c3d63';
+  });
+}
+
+/* ============================================================================
+   SECTION 8 · SIMULATION GRAPH + PARTICLE FLOWS
+   ----------------------------------------------------------------------------
+   Each mode defines flow paths (arrays of 3D waypoints) and colors. Particles
+   travel along Catmull-Rom curves built from those waypoints. A single pooled
+   Points object is recolored/retargeted per mode for performance.
+============================================================================ */
+const PCOUNT = 900;
+let particleGeo, particleMat, particles, flows=[], flowColor=0x76e0ff;
+let particleData = []; // {curve, t, speed, ci}
+
+function P(x,y,z){ return new THREE.Vector3(x,y,z).add(new THREE.Vector3(0,0.5,0)); }
+
+function makeParticleSystem(){
+  particleGeo = new THREE.BufferGeometry();
+  particleGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PCOUNT*3),3));
+  particleGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(PCOUNT*3),3));
+  particleMat = new THREE.PointsMaterial({size:0.12, vertexColors:true, transparent:true,
+    opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false,
+    map:dotTexture(), sizeAttenuation:true});
+  particles = new THREE.Points(particleGeo, particleMat);
+  particles.frustumCulled=false;
+  scene.add(particles);
+}
+function dotTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=64;
+  const g=c.getContext('2d');
+  const grad=g.createRadialGradient(32,32,0,32,32,32);
+  grad.addColorStop(0,'#fff'); grad.addColorStop(0.3,'#fff'); grad.addColorStop(1,'#0000');
+  g.fillStyle=grad; g.beginPath(); g.arc(32,32,32,0,7); g.fill();
+  const t=new THREE.CanvasTexture(c); return t;
+}
+
+/* flow path waypoints reference component positions for this profile */
+let GP={}; // graph points (rebuilt per profile so flows track the real layout)
+function buildSimGraph(profile){
+  const isDC = profile.id==='datacenter';
+  GP = {
+    cpu:   P(-9, 2.5, 0),
+    pcie:  isDC ? P(0,H/2-0.5,-0.3) : P(0,-H/2+0.2,0),
+    die:   P(0,0,0.3),
+    vram1: P(1.5, isDC?1.55:1.0, 0.2), vram2:P(-1.5,0.0,0.2), vram3:P(0,isDC?-1.55:-1.18,0.2),
+    l2:    P(0,0,0.3),
+    sm:    P(0,0,0.4),
+    raster:P(-0.3,-0.4,0.5), shade:P(0.2,0.3,0.5),
+    rt:    P(0.1,0.4,0.5),
+    tensor:P(0,0.1,0.5),
+    nvlink:isDC ? P(0,-H/2+0.45,-0.3) : P(0,0,0.3),
+    gpu2:  isDC ? P(0,-8,-2) : P(0,7.5,0),
+    display:P(-W/2-0.6,0.6,0.3),
+    fan:   P(profile.fans>0?1.55:0,0,1.6),
+    vrm:   P(isDC?W/2-0.4:2.1,0,0.3),
+    power: isDC ? P(W/2-0.4,0,0.3) : P(0.4,H/2-0.1,0.3)
+  };
+}
+
+/* Build curves for the active mode */
+function setMode(mode){
+  flows = [];
+  const L=[]; // legend entries
+  // each flow carries a `stage` index so the pipeline walkthrough can isolate it
+  const add=(pts,col,stage)=>flows.push({curve:new THREE.CatmullRomCurve3(pts), col:new THREE.Color(col), stage:stage||0});
+  const prof=currentProfile;
+
+  if(mode==='raster'){
+    add([GP.cpu,GP.pcie,GP.die], 0x76e0ff, 0);                       // commands in
+    add([GP.vram2,GP.l2,GP.sm,GP.raster,GP.shade], 0x5dffb0, 1);     // geometry→shade
+    add([GP.shade,GP.vram1], 0xffcf6b, 3);                           // texture fetch
+    if(prof.displayOut) add([GP.shade,GP.l2,GP.display], 0xff7bd0, 5);// scanout
+    L.push(['#76e0ff','Draw commands'],['#5dffb0','Geometry → shading'],['#ffcf6b','Texture / VRAM'],['#ff7bd0','Frame → display']);
+  }
+  else if(mode==='rt'){
+    add([GP.sm,GP.rt], 0x76e0ff, 0);               // rays issued
+    add([GP.rt,GP.vram1,GP.rt], 0x9d7bff, 1);      // BVH traversal
+    add([GP.rt,GP.shade,GP.l2], 0x5dffb0, 3);      // shade hits
+    add([GP.shade,GP.die], 0xffcf6b, 4);           // denoise
+    L.push(['#76e0ff','Rays cast'],['#9d7bff','BVH traversal'],['#5dffb0','Hit shading'],['#ffcf6b','Denoise']);
+  }
+  else if(mode==='ai'){
+    add([GP.vram2,GP.l2,GP.tensor], 0x76e0ff, 0);  // weights/activations in
+    add([GP.tensor,GP.tensor], 0x9d7bff, 1);       // MAC accumulate (tight loop)
+    add([GP.tensor,GP.l2,GP.vram1], 0x5dffb0, 3);  // results out
+    if(prof.nvlink){ add([GP.die,GP.nvlink,GP.gpu2], 0xff7bd0, 4); add([GP.gpu2,GP.nvlink,GP.die], 0xff7bd0, 4);}
+    else add([GP.cpu,GP.pcie,GP.die], 0xffcf6b, 4);
+    L.push(['#76e0ff','Load weights'],['#9d7bff','Tensor MACs'],['#5dffb0','Write results'],
+      prof.nvlink?['#ff7bd0','NVLink all-reduce']:['#ffcf6b','PCIe to host']);
+  }
+  else if(mode==='memory'){
+    add([GP.cpu,GP.pcie,GP.l2], 0x76e0ff, 0);
+    add([GP.vram1,GP.l2,GP.sm], 0x5dffb0, 1);
+    add([GP.vram2,GP.l2], 0xffcf6b, 2);
+    add([GP.sm,GP.l2,GP.vram3], 0x9d7bff, 4);
+    if(prof.nvlink) add([GP.die,GP.nvlink,GP.gpu2], 0xff7bd0, 5);
+    L.push(['#76e0ff','PCIe ↔ system RAM'],['#5dffb0','VRAM → cache → cores'],['#ffcf6b','Cache fills'],['#9d7bff','Writeback']);
+    if(prof.nvlink) L.push(['#ff7bd0','NVLink GPU↔GPU']);
+  }
+  else if(mode==='thermal'){
+    add([GP.power,GP.vrm,GP.die], 0xff6b7d, 0);    // power in
+    add([GP.die,GP.fan], 0xffcf6b, 3);             // heat up to cooler
+    add([GP.fan,P(3,3,2)], 0x76e0ff, 4);           // exhaust
+    add([GP.fan,P(-3,3,2)], 0x76e0ff, 4);
+    L.push(['#ff6b7d','Power delivery'],['#ffcf6b','Heat → heatsink'],['#76e0ff','Airflow exhaust']);
+  }
+  // build particles
+  rebuildParticles();
+  // legend
+  const lg=document.getElementById('legend');
+  if(L.length && mode!=='idle'){
+    lg.style.display='flex';
+    lg.innerHTML = L.map(x=>`<div class="lg"><i style="background:${x[0]}"></i>${x[1]}</div>`).join('');
+  } else lg.style.display='none';
+
+  currentMode=mode;
+  document.getElementById('modeName').textContent =
+    ({idle:'Idle',raster:'Rasterization',rt:'Ray Tracing',ai:'AI Compute',memory:'Memory',thermal:'Thermal/Power'})[mode];
+  document.getElementById('modeDesc').textContent = MODE_DESC[mode];
+  applyThermalTint(mode==='thermal');
+  setupPipeline(mode);
+  setupTelemetry(mode);
+}
+
+const MODE_DESC={
+  idle:'Static model. Explore freely — explode, rotate, and click parts.',
+  raster:'Watch a rasterized frame: draw commands arrive, geometry is shaded across CUDA cores, textures are fetched from VRAM, and the finished frame scans out to the display.',
+  rt:'Rays are cast from the SMs into the RT cores, which traverse the BVH acceleration structure, return hits for shading, then the image is denoised.',
+  ai:'Weights and activations stream from VRAM through cache into Tensor Cores, which run matrix multiply-accumulates; results write back. On data-centre parts, NVLink shares data between GPUs.',
+  memory:'Data movement across the hierarchy: PCIe ↔ system RAM, VRAM ↔ L2 cache ↔ cores, and (data-centre) GPU↔GPU over NVLink.',
+  thermal:'Power flows from the connector through the VRM into the die; heat rises into the vapor chamber and fins; fans exhaust it. Hot spots glow on the die.'
+};
+
+function rebuildParticles(){
+  particleData=[];
+  if(!flows.length){ particleGeo.setDrawRange(0,0); return; }
+  for(let i=0;i<PCOUNT;i++){
+    const f=flows[i%flows.length];
+    particleData.push({curve:f.curve, t:Math.random(), speed:0.12+Math.random()*0.25, col:f.col, stage:f.stage});
+  }
+  particleGeo.setDrawRange(0,PCOUNT);
+}
+function updateParticles(dt){
+  if(!particleData.length) return;
+  const pos=particleGeo.attributes.position.array;
+  const col=particleGeo.attributes.color.array;
+  const s=speedMul*(playing?1:0);
+  // when stepping through the pipeline, isolate the active stage's particles
+  const iso = walkMode && pipeStages.length;
+  for(let i=0;i<particleData.length;i++){
+    const d=particleData[i];
+    const active = !iso || d.stage===pipeStageFlow;
+    d.t += d.speed*dt*s*0.4*(active?1:0.25);
+    if(d.t>1) d.t-=1;
+    const p=d.curve.getPoint(d.t);
+    pos[i*3]=p.x; pos[i*3+1]=p.y; pos[i*3+2]=p.z;
+    const a = Math.sin(d.t*Math.PI), dim = active?1:0.12;
+    col[i*3]=d.col.r*(0.5+a*0.5)*dim; col[i*3+1]=d.col.g*(0.5+a*0.5)*dim; col[i*3+2]=d.col.b*(0.5+a*0.5)*dim;
+  }
+  particleGeo.attributes.position.needsUpdate=true;
+  particleGeo.attributes.color.needsUpdate=true;
+}
+
+/* Thermal tint: animate die emissive toward hot colors */
+let thermalActive=false;
+function applyThermalTint(on){ thermalActive=on; if(!on){ MAT.die.emissive.setHex(0x10203a); MAT.die.emissiveIntensity=0.8; } }
+
+/* ============================================================================
+   SECTION 9 · SELECTION + RAYCASTING
+============================================================================ */
+const ray=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+let selected=null, infoLevel='quick', hovered=null;
+const tip=document.getElementById('tip');
+
+function pointer(e){
+  const r=renderer.domElement.getBoundingClientRect();
+  mouse.x=((e.clientX-r.left)/r.width)*2-1;
+  mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+}
+function pickList(){ return dieInternals.visible? internalParts : parts; }
+
+renderer.domElement.addEventListener('pointermove',e=>{
+  pointer(e); ray.setFromCamera(mouse,camera);
+  const hits=ray.intersectObjects(pickList(),true);
+  const cid=hits.length? findCid(hits[0].object):null;
+  if(cid){ hovered=cid; tip.textContent=COMP[cid]?.name||cid; tip.style.opacity='1';
+    tip.style.left=(e.clientX-stage.getBoundingClientRect().left+12)+'px';
+    tip.style.top=(e.clientY-stage.getBoundingClientRect().top+12)+'px';
+    renderer.domElement.style.cursor='pointer';
+  } else { hovered=null; tip.style.opacity='0'; renderer.domElement.style.cursor='grab'; }
+});
+renderer.domElement.addEventListener('pointerdown',()=>{ renderer.domElement.style.cursor='grabbing'; });
+let downXY=null;
+renderer.domElement.addEventListener('mousedown',e=>downXY=[e.clientX,e.clientY]);
+renderer.domElement.addEventListener('click',e=>{
+  if(downXY && Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>5) return; // was a drag
+  pointer(e); ray.setFromCamera(mouse,camera);
+  const hits=ray.intersectObjects(pickList(),true);
+  if(hits.length){ const cid=findCid(hits[0].object); if(cid) select(cid); }
+});
+function findCid(o){ while(o){ if(o.userData.cid) return o.userData.cid; o=o.parent; } return null; }
+
+/* highlight helper */
+let highlighted=[];
+function clearHighlight(){ highlighted.forEach(m=>{ m.material.emissiveIntensity=m.userData._ei; }); highlighted=[]; }
+function highlight(cid){
+  clearHighlight();
+  const list = dieInternals.visible? dieInternals.children : root.children;
+  (dieInternals.visible?dieInternals:root).traverse(o=>{
+    if(o.isMesh && o.userData.cid===cid && o.material && 'emissiveIntensity' in o.material){
+      o.userData._ei = o.material.emissiveIntensity;
+      o.material.emissiveIntensity = 2.4;
+      highlighted.push(o);
+    }
+  });
+}
+
+function select(cid){
+  if(!COMP[cid]) return;
+  // drilling into the die switches the model
+  if(cid==='die' && !dieInternals.visible){ enterDie(); }
+  // selecting a die-internal child ensures we're in die view
+  if(COMP[cid].parent==='die' && !dieInternals.visible){ enterDie(); }
+  selected=cid;
+  renderInfo();
+  highlight(cid);
+  focusOn(cid);
+  if(window.innerWidth<=1100){ document.getElementById('right').classList.add('open'); }
+}
+
+/* ============================================================================
+   SECTION 10 · INFO PANEL RENDERING
+============================================================================ */
+function renderInfo(){
+  const c=COMP[selected]; if(!c) return;
+  document.getElementById('infoEmpty').style.display='none';
+  document.getElementById('infoContent').style.display='block';
+  const lvl=c[infoLevel];
+  document.getElementById('crumbs').textContent =
+    (c.parent?('Silicon die  ›  '):'GPU  ›  ') + c.name;
+  document.getElementById('infoName').textContent=c.name;
+  document.getElementById('tagline').textContent=c.tag;
+  document.getElementById('iWhat').textContent=lvl.what;
+  document.getElementById('iHow').textContent=lvl.how;
+  document.getElementById('iWhy').textContent=lvl.why;
+  document.getElementById('iAnalogy').textContent=c.analogy;
+  // connections
+  const ul=document.getElementById('iConn'); ul.innerHTML='';
+  (c.conn||[]).forEach(k=>{ if(!COMP[k])return;
+    const li=document.createElement('li');
+    li.innerHTML=`<span class="arrow">→</span> ${COMP[k].name}`;
+    li.onclick=()=>select(k); ul.appendChild(li);
+  });
+  document.getElementById('connWrap').style.display=(c.conn&&c.conn.length)?'block':'none';
+  // drill — the B200's dual-die layout adds the NV-HBI link as an extra drill target
+  const dw=document.getElementById('drillWrap'), dl=document.getElementById('iDrill');
+  if(c.drill){ dw.style.display='block'; dl.innerHTML='';
+    const drills = (selected==='die' && currentProfile.dualDie) ? c.drill.concat('nvhbi') : c.drill;
+    drills.forEach(k=>{ if(!COMP[k])return; const b=document.createElement('div'); b.className='chip';
+      b.textContent=COMP[k].name; b.onclick=()=>select(k); dl.appendChild(b); });
+  } else dw.style.display = c.parent?'block':'none';
+  document.getElementById('backBtn').style.display = dieInternals.visible?'inline-flex':'none';
+  // level tabs
+  document.getElementById('tabQuick').className='btn sm'+(infoLevel==='quick'?' primary':'');
+  document.getElementById('tabDeep').className='btn sm'+(infoLevel==='deep'?' primary':'');
+}
+document.getElementById('tabQuick').onclick=()=>{infoLevel='quick';renderInfo();};
+document.getElementById('tabDeep').onclick=()=>{infoLevel='deep';renderInfo();};
+document.getElementById('backBtn').onclick=()=>exitDie();
+
+/* ============================================================================
+   SECTION 11 · DIE DRILL-DOWN ENTER/EXIT + CAMERA FOCUS
+============================================================================ */
+function frameDie(){
+  // auto-frame whatever die floorplan + SM callout was built (varies by profile)
+  const box=new THREE.Box3().setFromObject(dieInternals);
+  const c=box.getCenter(new THREE.Vector3()), s=box.getSize(new THREE.Vector3());
+  const dist=(Math.max(s.x, s.y)/2)/Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*1.18 + s.z;
+  flyTo(new THREE.Vector3(c.x, c.y, c.z+dist), c.clone());
+}
+function enterDie(){
+  dieInternals.visible=true;
+  root.visible=false;
+  document.getElementById('hudHint').textContent='inside the die — click GPCs, SMs, cores, cache…';
+  frameDie();
+}
+function exitDie(){
+  dieInternals.visible=false;
+  root.visible=true;
+  selected='die'; infoLevel='quick'; renderInfo(); highlight('die');
+  document.getElementById('hudHint').textContent='click a part to inspect';
+  frameModel();
+}
+function focusOn(cid){
+  // find a representative mesh world position
+  const grp = dieInternals.visible?dieInternals:root;
+  let target=null;
+  grp.traverse(o=>{ if(!target && o.isMesh && o.userData.cid===cid){ target=new THREE.Vector3(); o.getWorldPosition(target);} });
+  if(target) controls.target.lerp(target, 0.6);
+}
+let flyAnim=null;
+function flyTo(camPos, target){
+  flyAnim={fromC:camera.position.clone(),toC:camPos,fromT:controls.target.clone(),toT:target,t:0};
+}
+function frameModel(){ flyTo(new THREE.Vector3(9,6.5,13), new THREE.Vector3(0,0.5,0)); }
+
+/* ============================================================================
+   SECTION 12 · UI WIRING
+============================================================================ */
+let currentMode='idle', playing=true, speedMul=1;
+
+// profile selector
+const profileSel=document.getElementById('profileSel');
+Object.values(PROFILES).forEach(p=>{ const o=document.createElement('option');o.value=p.id;o.textContent=p.tier+' — '+p.name;profileSel.appendChild(o);});
+profileSel.onchange=()=>loadProfile(profileSel.value);
+
+function loadProfile(id){
+  currentProfile=PROFILES[id];
+  if(dieInternals.visible) exitDie();
+  buildGPU(currentProfile);
+  renderProfileCard(currentProfile);
+  setMode(currentMode);
+  applyExplode(+document.getElementById('explode').value);
+  applyXray(xray);
+  document.getElementById('profName').textContent=currentProfile.name;
+  // clear selection
+  selected=null; clearHighlight();
+  document.getElementById('infoEmpty').style.display='block';
+  document.getElementById('infoContent').style.display='none';
+}
+function renderProfileCard(p){
+  const el=document.getElementById('profileCard');
+  el.innerHTML=`<div class="pcard">
+    <div class="tier">${p.tier}</div>
+    <h4>${p.name}</h4>
+    <div class="purpose">${p.purpose}</div>
+    ${p.specs.map(s=>`<div class="spec"><span>${s[0]}</span><span>${s[1]}</span></div>`).join('')}
+    <div class="illus">ⓘ <span>${p.note}</span></div>
+  </div>`;
+}
+
+// explode
+const explodeEl=document.getElementById('explode');
+explodeEl.oninput=()=>{ applyExplode(+explodeEl.value); document.getElementById('explodeVal').textContent=explodeEl.value+'%'; };
+let explodeAmt=0;
+function applyExplode(v){ explodeAmt=v/100; }
+function tickExplode(){
+  explodables.forEach(e=>{
+    const tgt=e.base.clone().add(e.dir.clone().multiplyScalar(explodeAmt));
+    e.obj.position.lerp(tgt,0.15);
+  });
+}
+
+// mode
+document.getElementById('modeSel').onchange=e=>setMode(e.target.value);
+
+// play / reset / speed
+const playBtn=document.getElementById('playBtn');
+playBtn.onclick=()=>{ playing=!playing; playBtn.textContent=playing?'⏸ Pause':'▶ Play'; playBtn.classList.toggle('on',!playing); };
+document.getElementById('resetBtn').onclick=()=>{ rebuildParticles(); fanSpin=0; };
+const speedEl=document.getElementById('speed');
+speedEl.oninput=()=>{ speedMul=+speedEl.value/100; document.getElementById('speedVal').textContent=speedMul.toFixed(1)+'×'; };
+
+// toggles
+function bindToggle(id,init,fn){ const el=document.getElementById(id); let s=init; el.classList.toggle('on',s);
+  el.onclick=()=>{ s=!s; el.classList.toggle('on',s); fn(s); }; return ()=>s; }
+labelsVisible=true;
+bindToggle('tLabels',true,v=>labelsVisible=v);
+let xray=false;
+bindToggle('tXray',false,v=>{xray=v;applyXray(v);});
+bindToggle('tBloom',false,v=>{bloomOn=v;});
+bindToggle('tRotate',false,v=>controls.autoRotate=v);
+bindToggle('tWalk',false,v=>{ walkMode=v;
+  const pe=document.getElementById('pipeline');
+  if(v && pipeStages.length){ pe.style.display='block'; setStage(pipeIndex); }
+  else { pe.style.display='none'; clearStageHi(); pipeStageFlow=-1; }
+});
+
+function applyXray(on){
+  (dieInternals.visible?dieInternals:root).traverse(o=>{
+    if(o.isMesh && o.material && o.material.transparent!==undefined){
+      // skip glow rings / gold fingers staying solid for readability
+      o.material.transparent = on;
+      o.material.opacity = on?0.28:1.0;
+      o.material.depthWrite = !on;
+    }
+  });
+}
+
+// frame button
+document.getElementById('frameBtn').onclick=()=> dieInternals.visible? frameDie() : frameModel();
+
+// search
+const searchEl=document.getElementById('search'), resultsEl=document.getElementById('results');
+let searchIdx=Object.keys(COMP).map(k=>({k,name:COMP[k].name,tag:COMP[k].tag}));
+function runSearch(q){
+  q=q.trim().toLowerCase();
+  if(!q){ resultsEl.style.display='none'; return; }
+  const m=searchIdx.filter(x=>x.name.toLowerCase().includes(q)||x.tag.toLowerCase().includes(q)||x.k.includes(q)).slice(0,8);
+  if(!m.length){ resultsEl.style.display='none'; return; }
+  resultsEl.style.display='block';
+  resultsEl.innerHTML=m.map((x,i)=>`<div data-k="${x.k}" class="${i===0?'sel':''}"><b>${x.name}</b> — <span style="color:#6b7aa9">${x.tag}</span></div>`).join('');
+  [...resultsEl.children].forEach(d=>d.onclick=()=>{ select(d.dataset.k); searchEl.value=''; resultsEl.style.display='none'; });
+}
+searchEl.oninput=()=>runSearch(searchEl.value);
+searchEl.onkeydown=e=>{
+  if(e.key==='Enter'){ const sel=resultsEl.querySelector('.sel'); if(sel){sel.click();} }
+  if(e.key==='Escape'){ resultsEl.style.display='none'; searchEl.blur(); }
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault();
+    const items=[...resultsEl.children]; let i=items.findIndex(x=>x.classList.contains('sel'));
+    items[i]?.classList.remove('sel'); i=(i+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;
+    items[i]?.classList.add('sel');
+  }
+};
+document.addEventListener('click',e=>{ if(!e.target.closest('.searchwrap')) resultsEl.style.display='none'; });
+
+// mobile panel toggles
+document.getElementById('togLeft').onclick=()=>document.getElementById('left').classList.toggle('open');
+document.getElementById('togRight').onclick=()=>document.getElementById('right').classList.toggle('open');
+
+/* ============================================================================
+   SECTION 13 · GUIDED TOUR
+============================================================================ */
+const TOUR=[
+  {cid:'shroud', title:'1 · The cooler shroud', body:'We start at the outside. The shroud houses the fans and channels air through the heatsink. Use the Explode slider any time to pull layers apart.'},
+  {cid:'fans', title:'2 · Fans', body:'Fans force air through the metal fins. Their speed is controlled by the die’s temperature sensors.'},
+  {cid:'heatsink', title:'3 · Heatsink & vapor chamber', body:'A vapor chamber sucks heat off the die and spreads it across a huge fin stack for the air to carry away.'},
+  {cid:'pcb', title:'4 · The PCB', body:'Everything mounts here. Multi-layer copper carries hundreds of amps and multi-gigabit signals between chips.'},
+  {cid:'vrm', title:'5 · Power delivery (VRM)', body:'A multi-phase converter turns 12 V into the ~1 V the die needs — cleanly enough to hold high boost clocks.'},
+  {cid:'vram', title:'6 · VRAM', body:'High-bandwidth memory holds frames, textures and AI tensors. Bandwidth here is often the real bottleneck.'},
+  {cid:'gpupkg', title:'7 · GPU package', body:'The substrate fans the die’s thousands of tiny connections out to the board (and hosts HBM on data-centre parts).'},
+  {cid:'die', title:'8 · The silicon die', body:'The processor itself. Click “Explore deeper” or the die to drill inside — we’ll do that next.', drill:true},
+  {cid:'sm', title:'9 · Streaming Multiprocessors', body:'Inside the die: the GPU is a grid of SMs, each a mini-processor with its own cores and cache.'},
+  {cid:'cuda', title:'10 · CUDA cores', body:'The general-purpose ALUs that run shaders and compute — thousands of them working in parallel.'},
+  {cid:'tensor', title:'11 · Tensor Cores', body:'Matrix-multiply engines: the workhorse of AI. Lower precision (FP8/FP4) multiplies effective throughput.'},
+  {cid:'rt', title:'12 · RT Cores', body:'Fixed-function ray-tracing: BVH traversal and ray-triangle intersection, so lighting can be ray-traced in real time.'},
+  {cid:'l2', title:'13 · Cache', body:'Large on-chip L2 (plus per-SM L1) keeps data close so thousands of cores aren’t starved by VRAM.'},
+  {cid:'memctrl', title:'14 · Memory controllers', body:'They schedule the wide VRAM bus to extract maximum real-world bandwidth. That ends the tour — explore freely!'}
+];
+let tourI=-1;
+function tourShow(i){
+  tourI=i; const step=TOUR[i];
+  document.getElementById('tourcard').style.display='block';
+  document.getElementById('tourTitle').textContent=step.title;
+  document.getElementById('tourBody').textContent=step.body;
+  document.getElementById('tourStep').textContent=`${i+1} / ${TOUR.length}`;
+  if(step.drill){ /* leave on die overview */ }
+  select(step.cid);
+}
+document.getElementById('tourBtn').onclick=()=>{ tourShow(0); };
+document.getElementById('tourNext').onclick=()=>{ if(tourI<TOUR.length-1) tourShow(tourI+1); };
+document.getElementById('tourPrev').onclick=()=>{ if(tourI>0) tourShow(tourI-1); };
+document.getElementById('tourEnd').onclick=()=>{ document.getElementById('tourcard').style.display='none'; tourI=-1; };
+
+// keyboard: arrows advance tour; Esc closes; / focuses search
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT') return;
+  if(e.key==='/'){ e.preventDefault(); searchEl.focus(); }
+  if(tourI>=0){
+    if(e.key==='ArrowRight') document.getElementById('tourNext').click();
+    if(e.key==='ArrowLeft')  document.getElementById('tourPrev').click();
+    if(e.key==='Escape')     document.getElementById('tourEnd').click();
+  }
+});
+
+/* ============================================================================
+   SECTION 13b · PIPELINE WALKTHROUGH (step through each simulation stage)
+============================================================================ */
+let walkMode=false, pipeStages=[], pipeIndex=0, pipeStageFlow=-1;
+const railChips=document.getElementById('railChips');
+
+// Ordered teaching stages per mode (parts = component ids to highlight; flow = particle stage tag)
+function stagesFor(mode, p){
+  const link = p.nvlink ? ['nvlink','nvhbi'] : ['pcie'];
+  if(mode==='raster') return [
+    {t:'Command submission', flow:0, parts:['pcie','sched'], desc:'The CPU records draw calls and pushes them over PCIe; the GigaThread engine schedules the work across the GPCs.'},
+    {t:'Geometry / vertex shading', flow:1, parts:['sm','cuda'], desc:'CUDA cores transform and light every vertex — position, projection and per-vertex attributes — across the SMs.'},
+    {t:'Rasterization', flow:1, parts:['gpc'], desc:'Each GPC’s raster engine turns triangles into fragments (candidate pixels), interpolating attributes across each surface.'},
+    {t:'Pixel shading + texturing', flow:3, parts:['cuda','vram'], desc:'Fragment shaders run on CUDA cores, sampling textures from VRAM through the texture units and cache.'},
+    {t:'Raster ops → framebuffer', flow:3, parts:['l2','vram'], desc:'Depth/stencil tests and blending (ROP) decide which fragments survive; results are written to the framebuffer in VRAM via L2.'},
+    {t:'Scanout to display', flow:5, parts:['display'], desc:'The display engine reads the finished framebuffer and streams it to your monitor at its refresh rate.'}];
+  if(mode==='rt') return [
+    {t:'Ray generation', flow:0, parts:['sm'], desc:'SMs launch rays from the camera (and for reflections, shadows and global illumination) — one or more per pixel.'},
+    {t:'BVH traversal', flow:1, parts:['rt','l2'], desc:'RT cores walk the Bounding Volume Hierarchy, rejecting empty space fast to find candidate geometry.'},
+    {t:'Ray–triangle intersection', flow:1, parts:['rt'], desc:'RT cores test rays against triangles and report the closest hit — the work that is far too slow without dedicated hardware.'},
+    {t:'Hit shading', flow:3, parts:['cuda','tensor','vram'], desc:'CUDA cores shade each hit (materials + lighting), sampling textures from VRAM; results build the image.'},
+    {t:'Denoise', flow:4, parts:['tensor'], desc:'Because few rays are cast per pixel, the noisy result is cleaned up — often by a Tensor-Core AI denoiser.'},
+    {t:'Composite / output', flow:4, parts:['display'], desc:'The denoised, shaded image is composited with raster passes and scanned out.'}];
+  if(mode==='ai') return [
+    {t:'Load weights & activations', flow:0, parts:['vram','l2'], desc:'Model weights and input activations stream from VRAM (HBM/GDDR) through L2 toward the Tensor Cores.'},
+    {t:'Tensor MACs', flow:1, parts:['tensor'], desc:'Tensor Cores run fused matrix multiply-accumulate on small tiles — the GEMMs that dominate neural networks.'},
+    {t:'Accumulate & activate', flow:1, parts:['l2','cuda'], desc:'Partial sums accumulate; activation functions and element-wise ops run, staging data in cache.'},
+    {t:'Write results', flow:3, parts:['vram'], desc:'Output activations (or gradients, in training) are written back to VRAM for the next layer.'},
+    {t: p.nvlink?'Collective over NVLink':'Transfer over PCIe', flow:4, parts:link,
+      desc: p.nvlink?'In multi-GPU training, gradients/activations are exchanged between GPUs over NVLink (all-reduce) — and across the two dies via NV-HBI.':'Results return to the host (or the next batch is fetched) over PCIe — far slower than on-card memory.'}];
+  if(mode==='memory'){ const s=[
+    {t:'Host transfer (PCIe)', flow:0, parts:['pcie','copy'], desc:'Data crosses between system RAM and VRAM over PCIe, driven by copy engines so the SMs keep computing.'},
+    {t:'VRAM read', flow:1, parts:['memctrl','vram'], desc:'Memory controllers schedule reads across the wide VRAM bus to extract maximum real bandwidth.'},
+    {t:'Cache fill', flow:2, parts:['l2'], desc:'Hot data lands in the large L2 (and per-SM L1) so cores aren’t starved by VRAM latency.'},
+    {t:'Compute consume', flow:1, parts:['sm'], desc:'SMs read operands from cache/registers, compute, and produce results.'},
+    {t:'Writeback', flow:4, parts:['vram'], desc:'Results are written back through the cache hierarchy to VRAM.'}];
+    if(p.nvlink) s.push({t:'GPU ↔ GPU (NVLink)', flow:5, parts:['nvlink'], desc:'On data-centre parts, GPUs share memory traffic directly over NVLink — far faster than routing through PCIe.'});
+    return s; }
+  if(mode==='thermal') return [
+    {t:'Power input', flow:0, parts: p.displayOut?['power','vrm']:['vrm'], desc:'12 V enters from the connector (or SXM rails) and feeds the voltage-regulation module.'},
+    {t:'Voltage regulation', flow:0, parts:['vrm','die'], desc:'The multi-phase VRM steps 12 V down to ~1 V at hundreds of amps, cleanly enough to hold boost clocks.'},
+    {t:'Heat generation', flow:0, parts:['die'], desc:'Switching billions of transistors turns most of that power into heat, concentrated on the die.'},
+    {t:'Heat spreading', flow:3, parts:['heatsink'], desc:'A vapor chamber lifts heat off the die and spreads it across the fin stack.'},
+    {t: p.fans>0?'Airflow & exhaust':'Chassis cooling', flow:4, parts: p.fans>0?['fans']:['heatsink'],
+      desc: p.fans>0?'Fans force air through the fins (double flow-through on the FE), carrying heat out of the card.':'No onboard fans — the SXM module is cooled by chassis airflow or a liquid cold plate.'},
+    {t:'Throttle feedback', flow:4, parts:['die'], desc:'Temperature sensors feed the clock/voltage controller; if limits are hit, clocks drop to stay within spec.'}];
+  return [];
+}
+
+let stageHiList=[];
+function clearStageHi(){ stageHiList.forEach(o=>{ if(o.userData._sgi!=null){ o.material.emissiveIntensity=o.userData._sgi; o.userData._sgi=null; }}); stageHiList=[]; }
+function stageHighlight(cids){
+  clearStageHi();
+  const grp=dieInternals.visible?dieInternals:root;
+  grp.traverse(o=>{ if(o.isMesh && cids.includes(o.userData.cid) && o.material && 'emissiveIntensity' in o.material){
+    o.userData._sgi=o.material.emissiveIntensity; o.material.emissiveIntensity=2.8; stageHiList.push(o); }});
+}
+function setStage(i){
+  if(!pipeStages.length) return;
+  pipeIndex=(i+pipeStages.length)%pipeStages.length;
+  const st=pipeStages[pipeIndex];
+  pipeStageFlow=st.flow;
+  [...railChips.children].forEach((c,k)=>c.classList.toggle('on',k===pipeIndex));
+  document.getElementById('stageTitle').textContent=(pipeIndex+1)+'. '+st.t+'   ';
+  document.getElementById('stageDesc').textContent=st.desc;
+  document.getElementById('stageCount').textContent=(pipeIndex+1)+' / '+pipeStages.length;
+  const sp=document.getElementById('stageParts'); sp.innerHTML='';
+  st.parts.forEach(cid=>{ if(!COMP[cid])return; const b=document.createElement('span'); b.className='pchip';
+    b.textContent=COMP[cid].name; b.onclick=()=>select(cid); sp.appendChild(b); });
+  stageHighlight(st.parts);
+  if(st.parts[0]) focusOn(st.parts[0]);
+  const ac=railChips.children[pipeIndex]; if(ac&&ac.scrollIntoView) ac.scrollIntoView({inline:'center',block:'nearest'});
+}
+function setupPipeline(mode){
+  pipeStages = mode==='idle' ? [] : stagesFor(mode, currentProfile);
+  const pe=document.getElementById('pipeline');
+  if(!pipeStages.length){ pe.style.display='none'; clearStageHi(); pipeStageFlow=-1; return; }
+  railChips.innerHTML='';
+  pipeStages.forEach((st,k)=>{ const c=document.createElement('div'); c.className='rchip';
+    c.innerHTML='<span class="n">'+(k+1)+'</span>'+st.t;
+    c.onclick=()=>{ if(!walkMode){ document.getElementById('tWalk').click(); } setStage(k); };
+    railChips.appendChild(c); });
+  pipeIndex=Math.min(pipeIndex, pipeStages.length-1);
+  pe.style.display = walkMode ? 'block' : 'none';
+  if(walkMode) setStage(pipeIndex); else { clearStageHi(); pipeStageFlow=-1; }
+}
+document.getElementById('stagePrev').onclick=()=>setStage(pipeIndex-1);
+document.getElementById('stageNext').onclick=()=>setStage(pipeIndex+1);
+
+/* ============================================================================
+   SECTION 13c · LIVE (ILLUSTRATIVE) TELEMETRY
+============================================================================ */
+let meters=[];
+function setupTelemetry(mode){
+  const wrap=document.getElementById('telemetry'), host=document.getElementById('meters');
+  meters=[]; host.innerHTML='';
+  if(mode==='idle'){ wrap.style.display='none'; return; }
+  const link = currentProfile.nvlink ? 'NVLink traffic' : 'PCIe transfer';
+  const cool = currentProfile.fans>0 ? 'Fan speed' : 'Cooling load';
+  const SET={
+    raster:[['Shader (CUDA) load',64,92,'%','#5dffb0'],['Texture bandwidth',40,76,'%','#ffcf6b'],['Pixel fill (ROP)',48,80,'%','#76e0ff'],['Board power',60,94,'%','#ff6b7d']],
+    rt:[['RT core load',55,90,'%','#9d7bff'],['BVH cache traffic',45,80,'%','#76e0ff'],['Shade + denoise',50,86,'%','#5dffb0'],['Board power',66,96,'%','#ff6b7d']],
+    ai:[['Tensor utilisation',72,99,'%','#9d7bff'],['VRAM bandwidth',60,95,'%','#5dffb0'],[link,40,86,'%','#76e0ff'],['Board power',76,99,'%','#ff6b7d']],
+    memory:[['VRAM bandwidth',55,95,'%','#5dffb0'],['L2 hit-rate',60,90,'%','#76e0ff'],['PCIe bandwidth',30,70,'%','#ffcf6b'],[currentProfile.nvlink?'NVLink traffic':'Host transfer',40,88,'%','#9d7bff']],
+    thermal:[['Board power',60,98,'%','#ff6b7d'],['Die temperature',58,84,'°C','#ffcf6b'],[cool,40,95,'%','#76e0ff'],['Boost clock',82,100,'%','#5dffb0']]
+  }[mode]||[];
+  SET.forEach((m,i)=>{
+    const el=document.createElement('div'); el.className='meter';
+    el.innerHTML='<div class="lab"><span>'+m[0]+'</span><b></b></div><div class="bar"><i style="background:'+m[4]+'"></i></div>';
+    host.appendChild(el);
+    meters.push({lo:m[1],hi:m[2],unit:m[3], val:el.querySelector('b'), bar:el.querySelector('i'), ph:i*1.7});
+  });
+  wrap.style.display='block';
+}
+function updateTelemetry(now){
+  if(!meters.length) return;
+  meters.forEach(m=>{
+    const osc = playing ? (0.5+0.5*Math.sin(now*0.0014*speedMul + m.ph)) : 0.5;
+    let v = m.lo + (m.hi-m.lo)*osc + (playing?(speedMul-1)*4:0);
+    v = Math.max(m.lo, Math.min(m.hi+ (m.unit==='°C'?6:4), v));
+    const pct = m.unit==='°C' ? (v-35)/(95-35)*100 : v;
+    m.bar.style.width = Math.max(2,Math.min(100,pct))+'%';
+    m.val.textContent = Math.round(v)+m.unit;
+  });
+}
+
+/* ============================================================================
+   SECTION 13d · COMPARE · GLOSSARY · HELP  (modals)
+============================================================================ */
+const CMP=[
+  ['Class','Gaming / creation','AI training & inference',null,null,'Same Blackwell family, opposite design targets.'],
+  ['GPU die','1× GB202 (monolithic)','2× dies + NV-HBI',1,2,'B200 fuses two reticle-limited dies into one GPU.'],
+  ['Transistors','92.2 B','208 B',92.2,208,''],
+  ['FP4 AI · sparse (illus.)','~3.4 PFLOPS','~36 PFLOPS',3.4,36,'Tensor-Core throughput; sparse/marketing figures.'],
+  ['Memory','32 GB GDDR7','180 GB HBM3e',32,180,'HBM sits on-package for enormous bandwidth.'],
+  ['Bandwidth','1.79 TB/s','~8 TB/s',1.79,8,''],
+  ['Interconnect','PCIe 5.0 ×16 (~64 GB/s)','NVLink (1.8 TB/s)',0.064,1.8,'NVLink is ~28× PCIe — that’s what makes multi-GPU scale.'],
+  ['Board power','575 W','≤ 1000 W',575,1000,''],
+  ['Cooling','Air · 2 fans (flow-through)','Passive (chassis)',null,null,'SXM modules carry no onboard fans.'],
+  ['Display outputs','3× DP 2.1 + 1× HDMI 2.1','None',null,null,'Data-centre parts never drive monitors.']
+];
+function buildCompare(){
+  const t=document.getElementById('cmpTable');
+  t.innerHTML='<div class="hd">Metric</div><div class="hd">RTX 5090 FE<small>consumer · GeForce</small></div><div class="hd">B200 SXM<small>data-centre · Blackwell</small></div>';
+  CMP.forEach(r=>{
+    const [metric,a,b,na,nb,note]=r;
+    const mx=Math.max(na||0,nb||0)||1;
+    const barA = na!=null?`<div class="cmpbar"><i style="width:${Math.round(na/mx*100)}%;background:var(--accent)"></i></div>`:'';
+    const barB = nb!=null?`<div class="cmpbar"><i style="width:${Math.round(nb/mx*100)}%;background:var(--accent-2)"></i></div>`:'';
+    t.insertAdjacentHTML('beforeend',
+      `<div class="mname">${metric}</div><div><span class="v">${a}</span>${barA}</div><div><span class="v">${b}</span>${barB}</div>`+
+      (note?`<div class="cmpnote">${note}</div>`:''));
+  });
+}
+
+const GLOSS=[
+  ['Warp & SIMT','32 threads execute together in lockstep (a "warp"). The GPU hides memory latency by switching between many warps.','SIMT = Single-Instruction, Multiple-Thread. Each warp scheduler issues one instruction to 32 lanes; high occupancy (many warps in flight) is what lets a GPU tolerate VRAM latency instead of stalling.'],
+  ['GEMM / matrix multiply','The matrix multiply-accumulate that dominates deep learning. Tensor Cores exist to do it fast.','Most of a neural net reduces to D = A×B + C on tiles. Tensor Cores compute whole tiles per instruction; low-precision formats (FP8/FP4) multiply effective throughput.'],
+  ['BVH','A tree that organises scene geometry so ray tracing can skip empty space.','Bounding Volume Hierarchy. RT cores traverse it to cull most of the scene before doing exact ray–triangle tests — turning an O(n) search into roughly O(log n).'],
+  ['DLSS / upscaling','Rendering at a lower resolution, then using AI (Tensor Cores) to reconstruct a sharp higher-resolution frame.','Deep-learning super-sampling and frame generation use trained networks on Tensor Cores to upscale and interpolate, trading a little image inference cost for a large rasterisation saving.'],
+  ['Sparsity (2:4)','Skipping zeros in a weight matrix to roughly double Tensor-Core throughput.','Blackwell supports 2:4 structured sparsity — 2 non-zeros per 4 elements. NVIDIA’s headline PFLOPS are usually the *with-sparsity* numbers; dense is about half.'],
+  ['Roofline / bottleneck','A kernel is either compute-bound or memory-bound; the slower of the two caps performance.','Plot achievable FLOPS vs arithmetic intensity (FLOPS per byte). Below the ridge point you’re memory-bound (bandwidth limits you); above it you’re compute-bound. Big caches raise intensity.'],
+  ['Cache hierarchy','Small fast on-chip memory (L1 per SM, large shared L2) that keeps data near the cores.','A hit in L1/L2 is far faster and cheaper than a VRAM trip. Blackwell grew L2 dramatically (96 MB on the 5090) precisely because feeding thousands of cores is bandwidth-bound.'],
+  ['GDDR vs HBM','GDDR7 (consumer) is fast discrete chips around the die; HBM3e (data-centre) is stacked memory on-package for far more bandwidth.','GDDR7 reaches ~1.8 TB/s over a 512-bit bus; HBM3e stacks give ~8 TB/s via thousands of bits over a silicon interposer — at much higher cost.'],
+  ['PCIe vs NVLink','PCIe links the GPU to the CPU (~64 GB/s). NVLink links GPUs to each other (~1.8 TB/s).','For multi-GPU AI, PCIe is a bottleneck. NVLink (and NVSwitch) let GPUs share gradients/activations ~28× faster, so a rack behaves like one accelerator.'],
+  ['NV-HBI','The 10 TB/s on-package bridge that fuses the B200’s two dies into one GPU.','NVIDIA High-Bandwidth Interface — cache-coherent die-to-die so software sees a single memory space and SM pool. It exists because one die can’t exceed the reticle limit.'],
+  ['Thermal throttling','When the die gets too hot, the GPU lowers clocks to protect itself — so cooling sets sustained performance.','Boost algorithms balance temperature, power and voltage every few milliseconds. Better cooling (vapor chamber, airflow) raises the ceiling before clocks back off.'],
+  ['Power phases (VRM)','Multiple regulator "phases" take turns delivering clean ~1 V power to the die.','A multi-phase buck converter (chokes + DrMOS + caps) interleaves to smooth ripple and supply hundreds of amps under fast transients — essential for stable boost.'],
+  ['Reticle limit','The largest area a chip can be printed in one exposure (~800 mm²) — why huge GPUs go multi-die.','Lithography can’t pattern a die bigger than the reticle. B200 hits that wall and uses two dies + NV-HBI; GB202 (750 mm²) is near the limit as a monolith.'],
+  ['FLOPS & precision','Lower numeric precision (FP32→FP16→FP8→FP4) trades accuracy for far more throughput.','Each precision halving roughly doubles Tensor-Core rate and halves memory use. Training favours BF16/FP8; inference increasingly uses FP8/FP4 with care.']
+];
+function buildGlossary(){
+  const host=document.getElementById('glossList'); host.innerHTML='';
+  GLOSS.forEach(g=>{ const d=document.createElement('div'); d.className='gterm';
+    d.innerHTML=`<h4>${g[0]}</h4><p>${g[1]}</p><div class="dd">${g[2]}</div><span class="more">deep dive ▾</span>`;
+    d.querySelector('.more').onclick=()=>{ d.classList.toggle('open');
+      d.querySelector('.more').textContent=d.classList.contains('open')?'show less ▴':'deep dive ▾'; };
+    host.appendChild(d); });
+}
+const KEYS=[
+  ['Drag','Rotate'],['Scroll','Zoom'],['Right-drag','Pan'],['Click part','Inspect it'],
+  ['1 – 9','Jump to a major component'],['Space','Play / pause simulation'],
+  ['[ / ]','Previous / next pipeline stage'],['/','Focus search'],
+  ['x','Toggle X-ray'],['l','Toggle labels'],['r','Recenter'],
+  ['c','Compare GPUs'],['g','Glossary'],['?','This help'],['Esc','Close panel / exit']
+];
+function buildHelp(){ document.getElementById('keysList').innerHTML =
+  KEYS.map(k=>`<div><span>${k[1]}</span><span class="kbd">${k[0]}</span></div>`).join(''); }
+
+function openModal(id){ document.querySelectorAll('.modal').forEach(m=>m.classList.remove('open'));
+  document.getElementById(id).classList.add('open'); }
+function closeModals(){ document.querySelectorAll('.modal').forEach(m=>m.classList.remove('open')); }
+document.querySelectorAll('.modal').forEach(m=>{
+  m.addEventListener('click',e=>{ if(e.target===m || e.target.hasAttribute('data-close')) closeModals(); });
+});
+document.getElementById('compareBtn').onclick=()=>openModal('compareModal');
+document.getElementById('glossaryBtn').onclick=()=>openModal('glossaryModal');
+document.getElementById('helpBtn').onclick=()=>openModal('helpModal');
+buildCompare(); buildGlossary(); buildHelp();
+
+/* ============================================================================
+   SECTION 13e · KEYBOARD SHORTCUTS
+============================================================================ */
+const NUMPARTS=['shroud','fans','heatsink','pcb','vram','die','vrm','pcie','power'];
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT') return;
+  if(e.key==='Escape'){ if(document.querySelector('.modal.open')){ closeModals(); return; } }
+  if(e.repeat) return;
+  const k=e.key.toLowerCase();
+  if(k>='1'&&k<='9'){ const cid=NUMPARTS[+k-1]; if(cid&&COMP[cid]&&parts.some(p=>p.userData.cid===cid)) select(cid); }
+  else if(e.key===' '){ e.preventDefault(); document.getElementById('playBtn').click(); }
+  else if(e.key===']'){ if(walkMode) setStage(pipeIndex+1); }
+  else if(e.key==='['){ if(walkMode) setStage(pipeIndex-1); }
+  else if(k==='x'){ document.getElementById('tXray').click(); }
+  else if(k==='l'){ document.getElementById('tLabels').click(); }
+  else if(k==='r'){ document.getElementById('frameBtn').click(); }
+  else if(k==='c'){ openModal('compareModal'); }
+  else if(k==='g'){ openModal('glossaryModal'); }
+  else if(e.key==='?'){ openModal('helpModal'); }
+});
+
+/* ============================================================================
+   SECTION 14 · ANIMATION LOOP
+============================================================================ */
+let fanSpin=0, last=performance.now(), fpsT=0, fpsN=0;
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=Math.min((now-last)/1000,0.05); last=now;
+
+  controls.update();
+  tickExplode();
+  updateParticles(dt);
+  updateTelemetry(now);
+
+  // spin fans (faster in raster/ai/thermal)
+  const fanRoot = root.children.find(c=>c.userData.cid==='fans');
+  const spinRate = (currentMode==='thermal'||currentMode==='ai'||currentMode==='raster')?6:2;
+  if(fanRoot && fanRoot.userData.blades && playing){
+    fanSpin += dt*spinRate*speedMul;
+    fanRoot.userData.blades.forEach(b=>b.rotation.z=fanSpin);
+  }
+
+  // thermal pulsing on die + hot spots
+  if(thermalActive && playing){
+    const pulse=0.5+0.5*Math.sin(now*0.004*speedMul);
+    MAT.die.emissive.setRGB(1.0, 0.25+0.2*pulse, 0.1);
+    MAT.die.emissiveIntensity=1.2+pulse*1.4;
+  }
+
+  // gentle die-internal glow animation
+  if(dieInternals.visible && playing){
+    MAT.tensorTile.emissiveIntensity=0.7+0.5*Math.sin(now*0.005);
+    MAT.cudaTile.emissiveIntensity=0.7+0.4*Math.sin(now*0.004+1);
+  }
+
+  // camera fly animation
+  if(flyAnim){ flyAnim.t=Math.min(flyAnim.t+dt*1.6,1);
+    const e=1-Math.pow(1-flyAnim.t,3);
+    camera.position.lerpVectors(flyAnim.fromC,flyAnim.toC,e);
+    controls.target.lerpVectors(flyAnim.fromT,flyAnim.toT,e);
+    if(flyAnim.t>=1) flyAnim=null;
+  }
+
+  updateLabels();
+
+  if(bloomOn) composer.render(); else renderer.render(scene,camera);
+
+  // fps
+  fpsT+=dt; fpsN++; if(fpsT>=0.5){ document.getElementById('fps').textContent=Math.round(fpsN/fpsT); fpsT=0;fpsN=0; }
+}
+
+/* ============================================================================
+   SECTION 15 · BOOT
+============================================================================ */
+function init(){
+  makeMaterials();
+  makeParticleSystem();
+  buildGPU(currentProfile);
+  renderProfileCard(currentProfile);
+  setMode('idle');
+  document.getElementById('profName').textContent=currentProfile.name;
+  resize();
+  window.addEventListener('resize',resize);
+  requestAnimationFrame(animate);
+  setTimeout(()=>{ const l=document.getElementById('loading'); l.style.opacity='0'; setTimeout(()=>l.remove(),500); },350);
+}
+init();
+</script>
+</body>
+</html>
