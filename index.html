@@ -43,10 +43,9 @@
   *{box-sizing:border-box;}
   html,body{margin:0;height:100%;background:var(--bg-0);color:var(--txt);font-family:var(--font);overflow:hidden;}
   body{
+    /* lit "workbench / studio" backdrop — lighter at top (light source), slate surface below */
     background:
-      radial-gradient(1200px 700px at 70% -10%, #142036 0%, transparent 60%),
-      radial-gradient(900px 600px at 0% 110%, #1a1330 0%, transparent 55%),
-      var(--bg-0);
+      radial-gradient(1500px 900px at 50% -8%, #45557a 0%, #303f60 24%, #20304e 50%, #16223b 74%, #0f1a2e 100%);
   }
   #app{position:fixed;inset:0;display:grid;grid-template-columns:300px 1fr 360px;grid-template-rows:56px 1fr;
        grid-template-areas:"head head head" "left stage right";}
@@ -254,6 +253,9 @@
   #tlBlurb{margin:0;font-size:14.5px;line-height:1.66;color:#eaf0fa;}
   #tlContext{margin-top:10px;font-size:12.5px;line-height:1.5;color:#cdd9ef;display:flex;gap:8px;align-items:flex-start;font-style:italic;}
   #tlContext .ic{font-style:normal;flex:0 0 auto;}
+  #tlBullets{margin:11px 0 0;padding:0;list-style:none;display:grid;gap:5px;}
+  #tlBullets li{position:relative;padding-left:16px;font-size:12.5px;line-height:1.45;color:#dbe4f4;}
+  #tlBullets li::before{content:'';position:absolute;left:1px;top:6px;width:6px;height:6px;border-radius:2px;background:var(--bcol,var(--accent));}
   .tb-side{flex:0 0 290px;min-width:230px;display:flex;flex-direction:column;gap:9px;}
   #tlKeyfacts{display:flex;gap:8px;}
   .kf{flex:1;background:rgba(118,224,255,.09);border:1px solid rgba(118,224,255,.20);border-radius:11px;padding:8px 10px;}
@@ -306,8 +308,8 @@
     <button class="btn sm mobtog" id="togLeft">☰ Controls</button>
     <div class="brand"><span class="dot"></span><div>GPU&nbsp;EXPLORER<br><small>Interactive 3D Architecture</small></div></div>
     <div class="modeswitch" id="modeSwitch">
-      <button class="msbtn on" data-mode="inspector">🔍 Inspector</button>
-      <button class="msbtn" data-mode="timeline">🕑 Timeline</button>
+      <button class="msbtn on" data-mode="timeline">🕑 Timeline</button>
+      <button class="msbtn" data-mode="inspector">🔍 Inspector</button>
     </div>
     <div class="modepill">
       <span id="profName">—</span> · <span id="modeName">Idle</span>
@@ -432,6 +434,7 @@
           <div class="tb-mid">
             <p id="tlBlurb"></p>
             <div id="tlContext"></div>
+            <ul id="tlBullets"></ul>
           </div>
           <div class="tb-side">
             <div id="tlKeyfacts"></div>
@@ -864,7 +867,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 canvas.addEventListener('webglcontextlost', e=>{ e.preventDefault(); }, false);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x05070d, 0.012);
+scene.fog = new THREE.FogExp2(0x1b2740, 0.011);  // lighter fog blends the bench into the backdrop
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
 camera.position.set(9, 6, 13);
@@ -882,7 +885,7 @@ controls.autoRotateSpeed = 0.6;
    flat. This is the single biggest contributor to the premium look. */
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.55; // subtle — keeps the scene dark/technical
+scene.environmentIntensity = 0.7; // brighter studio fill for the lit-workbench look
 
 /* Direct lighting — a cinematic dual-tone key/rim setup over the IBL fill */
 scene.add(new THREE.AmbientLight(0x4a5a7a, 0.35));
@@ -901,12 +904,12 @@ const fill = new THREE.PointLight(0x76e0ff, 0.5, 70); fill.position.set(0,-6,11)
 const front = new THREE.DirectionalLight(0xffffff, 0.7);
 camera.add(front); front.position.set(2,3,5); scene.add(camera);
 
-/* Soft contact shadow plane + grid floor for grounding */
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(80,80),
-  new THREE.ShadowMaterial({opacity:0.45}));
+/* Workbench surface — a lit slate bench the GPU sits on (catches shadows), with a cutting-mat grid */
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(120,120),
+  new THREE.MeshStandardMaterial({color:0x273450, roughness:0.96, metalness:0.0, envMapIntensity:0.4}));
 ground.rotation.x = -Math.PI/2; ground.position.y = -4.2; ground.receiveShadow = true; scene.add(ground);
-const grid2 = new THREE.GridHelper(60, 60, 0x1a2740, 0x10182a);
-grid2.position.y = -4.19; scene.add(grid2);
+const grid2 = new THREE.GridHelper(80, 80, 0x46587e, 0x33445f);
+grid2.position.y = -4.18; scene.add(grid2);
 
 /* Post-processing: bloom for glow (toggleable) */
 const composer = new EffectComposer(renderer);
@@ -2445,6 +2448,51 @@ const CTX={
   2025:['🤖','The dawn of the AI-PC era.']
 };
 function tlContext(e){ return e.ctx ? ['🕹️',e.ctx] : (CTX[e.year]||null); }
+
+// Condensed, sourced fact bullets per milestone (see README for sources). Keyed by title.
+const FACTS_RAW={
+  'NVIDIA founded':['Founded April 5, 1993 with roughly $40,000 of capital.','The plan was hatched at a San Jose Denny’s.','Jensen Huang, then 30, was CEO from day one.'],
+  'NV1':['Used quadratic surfaces instead of the triangles rivals chose.','Bundled Sega Saturn ports like Virtua Fighter Remix.','Microsoft’s triangle-only Direct3D doomed it by 1996.'],
+  'RIVA 128':['Codenamed NV3 — about 3.5 million transistors at 100 MHz.','Sold over a million units within months.','NVIDIA reportedly had just one month of payroll left.'],
+  'IPO on NASDAQ':['Went public January 22, 1999 under the ticker NVDA.','Priced at $12 per share.','Sold 3.5 million shares, raising about $42 million.'],
+  'GeForce 256 — “the first GPU”':['Released October 11, 1999 — 23 million transistors on 220 nm.','First chip with on-board hardware transform & lighting.','SDR version ran at 120 MHz; a DDR model followed in December.'],
+  'GeForce 2 GTS':['Launched April 26, 2000, codenamed NV15 (150 nm).','“GTS” = GigaTexel Shader — about 1.6 GTexel/s fill rate.','Roughly 25 million transistors at a 200 MHz core.'],
+  'NVIDIA acquires 3dfx':['Announced December 15, 2000 amid 3dfx’s bankruptcy.','NVIDIA paid $70 million cash plus one million shares.','Absorbed the “3dfx” and “Voodoo” trademarks and patents.'],
+  'GeForce 3 — programmable shaders':['March 2001 — first card with a programmable pixel shader.','NV20 packed 57 million transistors on 150 nm.','A derivative chip (NV2A) powered the original Xbox.'],
+  'GeForce FX 5800 (“Dustbuster”)':['NVIDIA’s first DirectX 9 card (NV30), March 2003.','Its “FX Flow” blower earned the “Dustbuster” nickname.','NVIDIA self-mocked it in a leaf-blower spoof video.'],
+  'GeForce 6800 Ultra + SLI returns':['NV40, April 2004 — 222 million transistors on 130 nm.','Reintroduced SLI and added Shader Model 3.0.','16 pixel shaders with 256 MB of GDDR3.'],
+  'GeForce 7800 GTX':['G70 — launched June 22, 2005 on a 110 nm process.','302 million transistors with 24 pixel pipelines.','430 MHz core, paired with 256 MB of GDDR3.'],
+  'GeForce 8800 GTX — unified shaders & CUDA':['November 8, 2006 — 681 million transistors on 90 nm.','First unified-shader design, with 128 CUDA cores.','Its 480 mm² die was the largest GPU of its time.'],
+  'CUDA platform released':['The CUDA SDK went public on February 15, 2007.','Grew from “Brook,” by Stanford’s Ian Buck (hired 2004).','Runs on every NVIDIA GPU from the G8x era onward.'],
+  'Acquires Ageia (PhysX)':['Ageia acquisition announced February 4, 2008.','Over 140 PhysX games shipped or in development then.','Tegra (the APX 2500 SoC) debuted days later at MWC.'],
+  'GeForce GTX 280':['June 16, 2008 at $650 — the 1.4-billion-transistor GT200.','240 stream processors, 512-bit bus, 1 GB GDDR3.','AMD’s HD 4870 forced a price cut to $499 within weeks.'],
+  'GeForce GTX 480 — Fermi':['March 26, 2010 — 480 of 512 designed cores enabled.','Weak 40 nm yields forced a shader cluster to be disabled.','A 250 W draw made it notorious for heat and noise.'],
+  'GeForce GTX 680 — Kepler':['March 22, 2012 at $499 — 28 nm GK104, 1,536 cores.','Kepler dropped Fermi’s separate, doubled shader clock.','Roughly doubled Fermi’s performance-per-watt.'],
+  'AlexNet ignites deep learning':['Trained on just two GTX 580 cards (3 GB each).','About 90 epochs over ~1.2 million images, ~6 days.','Cut the ImageNet top-5 error from 26.2% to 15.3%.'],
+  'GeForce GTX Titan':['Feb 18, 2013 at $999 — 7.1-billion-transistor GK110.','2,688 cores and 6 GB GDDR5 on a 384-bit bus.','Introduced GPU Boost 2.0 for gamers and developers.'],
+  'GeForce GTX 980 — Maxwell':['Sept 19, 2014 at $549 — 28 nm GM204, 2,048 cores.','A flagship with a TDP of just 165 W.','Maxwell roughly doubled Kepler’s perf-per-watt.'],
+  'DGX-1 — first AI supercomputer':['Eight Tesla P100 GPUs — up to 170 FP16 teraflops.','Each P100 had 16 GB HBM2; the box held 7 TB of SSD.','Jensen Huang hand-delivered the first unit to OpenAI.'],
+  'GeForce GTX 1080 — Pascal':['May 27, 2016 — $599 reference, $699 Founders Edition.','16 nm GP104 with 2,560 cores at a 180 W rating.','First GPU to ship with GDDR5X memory (8 GB).'],
+  'Volta + Tensor Cores':['21.1 billion transistors on a huge 815 mm² die.','First NVIDIA chip with Tensor Cores — 640 of them.','Announced May 10, 2017; up to 120 Tensor TFLOPS.'],
+  'Titan V — Volta & Tensor Cores':['Launched December 8, 2017 at a steep $2,999.','First consumer card built on the data-centre GV100 die.','Carried 12 GB HBM2 and ~110 teraflops of compute.'],
+  'GeForce RTX 2080 — Turing & RTX':['Unveiled at Gamescom Aug 20, 2018; shipped Sept 20.','First consumer GPUs with hardware ray tracing (RT cores).','The ray-tracing tech reportedly took ~10 years to build.'],
+  'Acquires Mellanox':['Closed April 27, 2020 at $125/share — about $7B.','By far NVIDIA’s largest deal — prior buys were under ~$400M.','China’s regulator cleared it conditionally days earlier.'],
+  'A100 — Ampere data-centre':['May 14, 2020 — 54.2 billion transistors on TSMC 7 nm.','MIG can split one A100 into up to seven GPUs.','Third-gen Tensor Cores with 40 GB of HBM2.'],
+  'GeForce RTX 3080 — Ampere':['Announced Sept 1, 2020; launched at $699 on Sept 17.','Samsung 8 nm, 28 billion transistors, 8,704 cores.','First consumer card to use GDDR6X (19 Gbps).'],
+  'ARM acquisition announced':['Announced Sept 13, 2020 — $21.5B stock plus $12B cash.','Would have been the largest-ever chip acquisition.','SoftBank would have kept an under-10% NVIDIA stake.'],
+  'ARM acquisition abandoned':['Terminated February 7, 2022 under regulator pressure.','SoftBank kept the $1.25 billion breakup fee.','The FTC suit cited harm in ADAS, SmartNICs and cloud CPUs.'],
+  'H100 — Hopper':['Revealed March 2022 — 80 billion transistors on TSMC 4N.','First Transformer Engine, adding FP8 precision.','HBM3 reached 3 TB/s — 50% over the A100.'],
+  'GeForce RTX 4090 — Ada Lovelace':['October 12, 2022 at $1,599 — 16,384 CUDA cores.','DLSS 3 generates whole frames via an Optical Flow Accelerator.','L2 cache jumped 16× to 96 MB versus Ampere.'],
+  'ChatGPT triggers the AI gold rush':['Released November 30, 2022, running on GPT-3.5.','Reached 1 million users in just five days.','About 100 million monthly users by January 2023.'],
+  'AI boom → $1 trillion':['Touched $1 trillion at the open on May 30, 2023.','First-ever US chipmaker to cross the mark.','Followed guidance pointing to ~$11B in quarterly revenue.'],
+  '$2 trillion market cap':['Reached $2 trillion in February 2024.','Just the third US firm to do so, after Microsoft and Apple.','Then went from $2T to $3T in roughly three months.'],
+  'B200 — Blackwell':['Unveiled at GTC on March 18, 2024 by Jensen Huang.','Two dies joined by a 10 TB/s NV-HBI interconnect.','NVIDIA claimed up to ~4× Hopper’s training performance.'],
+  '$3 trillion market cap':['Hit $3.34T on June 18, 2024, edging past Microsoft.','Briefly the world’s most valuable public company.','Its stock had risen more than ninefold since end-2022.'],
+  'GeForce RTX 5090 — Blackwell':['Revealed at CES Jan 6, 2025; launched Jan 30 at $1,999.','32 GB GDDR7, 21,760 CUDA cores, ~1,792 GB/s.','DLSS 4 can insert up to three AI frames per rendered frame.'],
+  '$4 trillion — a historic first':['Crossed $4 trillion intraday on July 9, 2025 — a world first.','Shares hit an all-time high near $164.','Closed at about $3.97T, just under the line.']
+};
+const FACTS={}; for(const k in FACTS_RAW){ FACTS[k.replace(/[^a-z0-9]/gi,'').toLowerCase()]=FACTS_RAW[k]; }
+function getFacts(e){ return FACTS[(e.title||'').replace(/[^a-z0-9]/gi,'').toLowerCase()]||[]; }
 function tlRender(e){
   const col=TLC[e.type];
   document.getElementById('tlBigYear').textContent=e.year;       // year in the corner of the box
@@ -2457,6 +2505,9 @@ function tlRender(e){
   document.getElementById('tlBlurb').textContent=e.blurb;
   const ctx=tlContext(e), ce=document.getElementById('tlContext');
   if(ctx){ ce.style.display='flex'; ce.innerHTML='<span class="ic">'+ctx[0]+'</span><span>'+ctx[1]+'</span>'; } else ce.style.display='none';
+  const bl=document.getElementById('tlBullets'), facts=getFacts(e);
+  bl.style.setProperty('--bcol', col);
+  bl.innerHTML=facts.map(f=>'<li>'+f+'</li>').join(''); bl.style.display=facts.length?'grid':'none';
   const fr=document.getElementById('tlFirst'), kfs=document.getElementById('tlKeyfacts'), specs=document.getElementById('tlSpecs');
   if(e.gpu){ const g=e.gpu;
     fr.style.display=g.first?'flex':'none'; fr.innerHTML=g.first?'<span>★</span><span>'+g.first+'</span>':'';
@@ -2623,6 +2674,7 @@ function init(){
   requestAnimationFrame(()=>{ resize(); });
   window.addEventListener('orientationchange',()=>setTimeout(resize,200));
   requestAnimationFrame(animate);
+  setAppMode('timeline');   // Timeline is the main page; Inspector is the secondary tab
   setTimeout(()=>{ const l=document.getElementById('loading'); l.style.opacity='0'; setTimeout(()=>l.remove(),500); },350);
 }
 init();
