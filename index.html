@@ -923,6 +923,7 @@ function resize(){
   renderer.setSize(w,h,false);
   composer.setSize(w,h);
   camera.aspect = w/h; camera.updateProjectionMatrix();
+  if(typeof appMode!=='undefined' && appMode==='timeline' && typeof fitTimeline==='function') fitTimeline();
 }
 
 /* ============================================================================
@@ -1799,7 +1800,14 @@ let flyAnim=null;
 function flyTo(camPos, target){
   flyAnim={fromC:camera.position.clone(),toC:camPos,fromT:controls.target.clone(),toT:target,t:0};
 }
-function frameModel(){ flyTo(new THREE.Vector3(9,6.5,13), new THREE.Vector3(0,0.5,0)); }
+function frameModel(){
+  const aspect=Math.max(0.45,(stage.clientWidth||16)/(stage.clientHeight||9));
+  const fv=THREE.MathUtils.degToRad(camera.fov/2);
+  const halfW=(W/2)+0.8, halfH=(H/2)+1.0;                    // current card half-extents (+ cooler/connectors)
+  const d=Math.max(halfH/Math.tan(fv), halfW/(Math.tan(fv)*aspect))*1.18 + 2.4;
+  const dir=new THREE.Vector3(9,6.5,13).normalize();
+  flyTo(dir.multiplyScalar(d).add(new THREE.Vector3(0,0.5,0)), new THREE.Vector3(0,0.5,0));
+}
 
 /* ============================================================================
    SECTION 12 · UI WIRING
@@ -2420,6 +2428,27 @@ function centerStrip(anim){ const card=stripInner.children[tlIdx]; if(!card) ret
   stripInner.style.transform='translateX('+tx+'px)';
   if(!anim) stripInner.offsetHeight, stripInner.style.transition=''; }
 function lastGpuUpTo(idx){ let g=null; for(let i=0;i<=idx;i++){ if(TIMELINE[i].gpu) g=TIMELINE[i]; } return g; }
+// Responsively scale + centre the timeline card so it always fits the free space
+// (between the top history band and the bottom dock) at any resolution / aspect.
+let tlFitScale=1; const TLCAMD=Math.hypot(3.2,2.0,10.5);
+function fitTimeline(){
+  if(!tlGroup.visible) return;
+  const sw=stage.clientWidth, sh=stage.clientHeight; if(sw<4||sh<4) return;
+  const bandH=(document.getElementById('tlInfo')||{}).offsetHeight||0;
+  const dockH=(document.getElementById('tlbar')||{}).offsetHeight||0;
+  const freeH=Math.max(140, sh-bandH-dockH);
+  const sc0=tlGroup.scale.x, ry0=tlGroup.rotation.y;
+  tlGroup.position.set(0,0,0); tlGroup.scale.set(1,1,1); tlGroup.rotation.y=0; tlGroup.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(tlGroup), sz=box.getSize(new THREE.Vector3()), ctr=box.getCenter(new THREE.Vector3());
+  const vH=2*TLCAMD*Math.tan(THREE.MathUtils.degToRad(camera.fov/2));  // world height across the full stage at the card's depth
+  const ppu=sh/vH;                                                     // pixels per world-unit
+  const effW=sz.x + sz.z*0.5;                                          // headroom for the gentle showcase rotation
+  tlFitScale=Math.max(0.32, Math.min(2.4, Math.min((sw*0.84)/(effW*ppu), (freeH*0.84)/(sz.y*ppu))));
+  const downPx=(bandH-dockH)/2;                                        // free-region centre relative to viewport centre
+  tlGroup.rotation.y=ry0;
+  tlGroup.position.set(0, 0.4 - downPx/ppu - ctr.y*tlFitScale, 0);
+  tlGroup.scale.setScalar(sc0);                                        // tlAnimate applies tlFitScale next frame
+}
 // "what else was happening" cultural context, keyed by year (per-entry e.ctx overrides)
 const CTX={
   1993:['🌐','The year DOOM kicked off the 3D-shooter craze and the web went public.'],
@@ -2532,7 +2561,8 @@ function setActive(i, anim){
   const g = e.gpu? e : lastGpuUpTo(tlIdx);
   const ctl=document.getElementById('tlModelCtl');
   if(g){ tlGroup.visible=true; ctl.style.display='block';
-    if(g.title!==tlCurGpuTitle){ tlCurGpuTitle=g.title; buildEraModel(g); } }
+    if(g.title!==tlCurGpuTitle){ tlCurGpuTitle=g.title; buildEraModel(g); }
+    fitTimeline(); }
   else { tlGroup.visible=false; tlCurGpuTitle=null; ctl.style.display='none'; }
 }
 function tlStepVisible(dir){ let i=tlIdx+dir; while(i>=0&&i<TIMELINE.length&&!tlVisible(TIMELINE[i])) i+=dir;
@@ -2572,16 +2602,16 @@ function setAppMode(mode){
   if(mode==='timeline'){
     root.visible=false; dieInternals.visible=false; if(particles) particles.visible=false;
     labelEls.forEach(el=>el.style.display='none');  // hide stale inspector labels (loop skips updateLabels in timeline)
-    controls.enableZoom=false;                      // wheel drives history instead of zoom
+    controls.enableZoom=false; controls.enableRotate=false;  // fixed showcase angle → fit stays deterministic
     if(!stripInner.children.length) buildFilmstrip();
-    setActive(tlIdx,false);  // reading offsetLeft forces the dock layout synchronously
     flyTo(new THREE.Vector3(3.2,2.4,10.5), new THREE.Vector3(0,0.4,0));
+    setActive(tlIdx,false);  // reading offsetLeft forces the dock layout synchronously (also runs fitTimeline)
     document.getElementById('modeName').textContent='History';
   } else {
     tlPlaying=false; tlGroup.visible=false; if(particles) particles.visible=true;
-    controls.enableZoom=true;
+    controls.enableZoom=true; controls.enableRotate=true;
     if(!dieInternals.visible) root.visible=true;
-    flyTo(new THREE.Vector3(9,6.5,13), new THREE.Vector3(0,0.5,0));
+    if(dieInternals.visible) frameDie(); else frameModel();
     document.getElementById('modeName').textContent=({idle:'Idle',raster:'Rasterization',rt:'Ray Tracing',ai:'AI Compute',memory:'Memory',thermal:'Thermal/Power'})[currentMode]||'Idle';
   }
 }
@@ -2590,8 +2620,10 @@ document.getElementById('modeSwitch').addEventListener('click',e=>{ const b=e.ta
 function tlAnimate(dt,now){
   if(tlPlaying){ tlPlayT+=dt; if(tlPlayT>=1.15){ tlPlayT=0; if(tlIdx>=TIMELINE.length-1){ tlPlaying=false; tlPlayBtnLabel(); } else tlStepVisible(1); } }
   tlExpl.forEach(o=> o.obj.position.lerp(o.base.clone().add(o.dir.clone().multiplyScalar(tlExplodeAmt)),0.15));
-  if(tlIntro<1){ tlIntro=Math.min(1,tlIntro+dt*3); const s=0.55+0.45*(1-Math.pow(1-tlIntro,3)); tlGroup.scale.setScalar(s); }
-  tlGroup.rotation.y = Math.sin(now*0.0003)*0.25;  // gentle showcase rotation
+  if(tlIntro<1) tlIntro=Math.min(1,tlIntro+dt*3);
+  const ie=0.62+0.38*(1-Math.pow(1-tlIntro,3));
+  tlGroup.scale.setScalar(tlFitScale*ie);          // responsive fit scale (+ intro grow-in)
+  tlGroup.rotation.y = Math.sin(now*0.00028)*0.16; // gentle showcase rotation (kept small so it stays in frame)
   const cl=tlGroup.userData.cooler; if(cl&&cl.userData.blades){ const sp=now*0.003; cl.userData.blades.forEach(b=>b.rotation.z=sp); }
 }
 
