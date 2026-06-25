@@ -236,29 +236,30 @@
   body.tl #tlInfo{display:block;}
   body.tl #tlbar{display:block;}
   /* full-width history band across the top */
-  #tlInfo{position:absolute;left:0;right:0;top:0;z-index:16;pointer-events:auto;max-height:52%;overflow-y:auto;
+  #tlInfo{position:absolute;left:0;right:0;top:0;z-index:16;pointer-events:auto;max-height:46%;overflow-y:auto;
     background:linear-gradient(180deg,rgba(22,29,49,.96),rgba(12,17,30,.82));
     -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
     border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 14px 34px #0007;}
   #tlInfo::-webkit-scrollbar{height:7px;width:7px;} #tlInfo::-webkit-scrollbar-thumb{background:#2a3650;border-radius:7px;}
   #tlAccentBar{height:4px;}
-  #tlInner{display:flex;align-items:flex-start;gap:24px;padding:12px 26px 14px;flex-wrap:wrap;}
-  .tb-lead{flex:0 0 232px;min-width:200px;}
+  #tlInner{display:flex;align-items:flex-start;gap:18px;padding:11px 20px 13px;flex-wrap:wrap;}
+  .tb-lead{flex:1 1 166px;min-width:150px;}
   #tlBigYear{font-size:46px;font-weight:800;line-height:.92;letter-spacing:-1px;color:#fff;}   /* year in the corner of the box */
   #tlKicker{font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:800;margin:6px 0 5px;}
   #tlBadge{display:none;}
   #tlTitle{margin:0 0 3px;font-size:20px;line-height:1.16;font-weight:800;color:#fff;letter-spacing:-.2px;}
   #tlSub{font-size:12.5px;color:var(--txt-dim);}
-  .tb-mid{flex:1 1 300px;align-self:stretch;display:flex;flex-direction:column;justify-content:center;}
+  .tb-mid{flex:1.4 1 240px;min-width:0;align-self:stretch;display:flex;flex-direction:column;justify-content:center;}
   #tlBlurb{margin:0;font-size:14.5px;line-height:1.66;color:#eaf0fa;}
   #tlContext{margin-top:10px;font-size:12.5px;line-height:1.5;color:#cdd9ef;display:flex;gap:8px;align-items:flex-start;font-style:italic;}
   #tlContext .ic{font-style:normal;flex:0 0 auto;}
   #tlBullets{margin:11px 0 0;padding:0;list-style:none;display:grid;gap:5px;}
   #tlBullets li{position:relative;padding-left:16px;font-size:12.5px;line-height:1.45;color:#dbe4f4;}
   #tlBullets li::before{content:'';position:absolute;left:1px;top:6px;width:6px;height:6px;border-radius:2px;background:var(--bcol,var(--accent));}
-  .tb-side{flex:0 0 290px;min-width:230px;display:flex;flex-direction:column;gap:9px;}
-  #tlKeyfacts{display:flex;gap:8px;}
-  .kf{flex:1;background:rgba(118,224,255,.09);border:1px solid rgba(118,224,255,.20);border-radius:11px;padding:8px 10px;}
+  .tb-side{flex:1 1 215px;min-width:172px;display:flex;flex-direction:column;gap:8px;}
+  #tlKeyfacts{display:flex;gap:7px;}
+  .kf{flex:1;min-width:0;background:rgba(118,224,255,.09);border:1px solid rgba(118,224,255,.20);border-radius:11px;padding:8px 9px;overflow:hidden;}
+  .kf b{white-space:nowrap;}
   .kf b{display:block;font-size:17px;font-weight:800;color:#fff;line-height:1.1;}
   .kf span{font-size:9.5px;color:var(--txt-dim);letter-spacing:.2px;}
   #tlFirst{font-size:12.5px;color:#ffe1a6;line-height:1.45;display:flex;gap:8px;align-items:flex-start;
@@ -268,9 +269,9 @@
   #tlSpecs .sp span:first-child{color:var(--txt-mute);white-space:nowrap;} #tlSpecs .sp span:last-child{color:var(--txt);text-align:right;font-family:var(--mono);font-size:10.5px;}
   #tlModelCtl{display:flex;align-items:center;gap:8px;}
   #tlModelCtl .row{margin:0;flex:1;} #tlModelCtl .row label{min-width:auto;}
-  @media(max-width:1100px){
+  @media(max-width:600px){
     .tb-lead,.tb-side,.tb-mid{flex-basis:100%;}
-    #tlBigYear{font-size:34px;} #tlSpecs{grid-template-columns:1fr 1fr;}
+    #tlBigYear{font-size:32px;}
   }
   /* bottom dock: controls + filmstrip */
   #tlbar{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#0a1018cc,#070b14fb);
@@ -282,12 +283,12 @@
   .tlf{font-size:10.5px;padding:3px 9px;border-radius:20px;border:1px solid var(--line-hi);cursor:pointer;color:var(--txt-mute);user-select:none;display:flex;align-items:center;gap:5px;}
   .tlf.on{color:var(--txt);} .tlf i{width:8px;height:8px;border-radius:50%;display:inline-block;}
   .tlf.off{opacity:.4;text-decoration:line-through;}
-  #tlStrip{position:relative;overflow:hidden;height:128px;touch-action:pan-y;cursor:grab;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);}
+  #tlStrip{position:relative;overflow:hidden;height:104px;touch-action:pan-y;cursor:grab;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);}
   #tlStrip.drag{cursor:grabbing;}
   #tlStripInner{position:absolute;left:50%;top:6px;display:flex;gap:12px;transition:transform .35s cubic-bezier(.2,.7,.2,1);will-change:transform;}
-  .tlcard{flex:0 0 auto;width:128px;text-align:center;cursor:pointer;opacity:.5;transform:scale(.82);transition:.25s;filter:saturate(.7);}
+  .tlcard{flex:0 0 auto;width:112px;text-align:center;cursor:pointer;opacity:.5;transform:scale(.82);transition:.25s;filter:saturate(.7);}
   .tlcard.on{opacity:1;transform:scale(1.06);filter:none;}
-  .tlcard canvas{display:block;width:128px;height:80px;border-radius:9px;border:1px solid var(--line);background:#070b14;}
+  .tlcard canvas{display:block;width:112px;height:68px;border-radius:9px;border:1px solid var(--line);background:#070b14;}
   .tlcard.on canvas{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 22px #000a;}
   .tlcard .cy{font-family:var(--mono);font-size:11px;color:var(--accent);margin-top:5px;font-weight:700;}
   .tlcard .cn{font-size:10px;color:var(--txt-dim);line-height:1.2;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -2430,24 +2431,36 @@ function centerStrip(anim){ const card=stripInner.children[tlIdx]; if(!card) ret
 function lastGpuUpTo(idx){ let g=null; for(let i=0;i<=idx;i++){ if(TIMELINE[i].gpu) g=TIMELINE[i]; } return g; }
 // Responsively scale + centre the timeline card so it always fits the free space
 // (between the top history band and the bottom dock) at any resolution / aspect.
-let tlFitScale=1; const TLCAMD=Math.hypot(3.2,2.0,10.5);
+let tlFitScale=1;
+const TLCAM=new THREE.Vector3(3.2,2.4,10.5), TLTGT=new THREE.Vector3(0,0.4,0);
+const TLCAMD=TLCAM.distanceTo(TLTGT);
 function fitTimeline(){
   if(!tlGroup.visible) return;
   const sw=stage.clientWidth, sh=stage.clientHeight; if(sw<4||sh<4) return;
   const bandH=(document.getElementById('tlInfo')||{}).offsetHeight||0;
   const dockH=(document.getElementById('tlbar')||{}).offsetHeight||0;
-  const freeH=Math.max(140, sh-bandH-dockH);
+  const freeH=Math.max(120, sh-bandH-dockH);
+  // measure the model at scale 1, no rotation, placed at the display anchor
   const sc0=tlGroup.scale.x, ry0=tlGroup.rotation.y;
-  tlGroup.position.set(0,0,0); tlGroup.scale.set(1,1,1); tlGroup.rotation.y=0; tlGroup.updateMatrixWorld(true);
-  const box=new THREE.Box3().setFromObject(tlGroup), sz=box.getSize(new THREE.Vector3()), ctr=box.getCenter(new THREE.Vector3());
-  const vH=2*TLCAMD*Math.tan(THREE.MathUtils.degToRad(camera.fov/2));  // world height across the full stage at the card's depth
-  const ppu=sh/vH;                                                     // pixels per world-unit
-  const effW=sz.x + sz.z*0.5;                                          // headroom for the gentle showcase rotation
-  tlFitScale=Math.max(0.32, Math.min(2.4, Math.min((sw*0.84)/(effW*ppu), (freeH*0.84)/(sz.y*ppu))));
-  const downPx=(bandH-dockH)/2;                                        // free-region centre relative to viewport centre
+  tlGroup.scale.set(1,1,1); tlGroup.rotation.y=0; tlGroup.position.set(0,0.4,0); tlGroup.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(tlGroup), ctr=box.getCenter(new THREE.Vector3());
+  // a camera locked to the timeline angle (independent of any in-progress fly/orbit)
+  const cam=camera.clone(); cam.position.copy(TLCAM); cam.up.set(0,1,0); cam.lookAt(TLTGT);
+  cam.aspect=sw/sh; cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
+  // project the 8 bbox corners to screen pixels → exact on-screen footprint (handles perspective)
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9; const v=new THREE.Vector3();
+  for(let i=0;i<8;i++){
+    v.set(i&1?box.max.x:box.min.x, i&2?box.max.y:box.min.y, i&4?box.max.z:box.min.z).project(cam);
+    const px=(v.x*0.5+0.5)*sw, py=(-v.y*0.5+0.5)*sh;
+    if(px<minX)minX=px; if(px>maxX)maxX=px; if(py<minY)minY=py; if(py>maxY)maxY=py;
+  }
+  const projW=Math.max(1,maxX-minX)*1.12, projH=Math.max(1,maxY-minY); // *1.12 headroom for the gentle rotation
+  tlFitScale=Math.max(0.3, Math.min(2.6, Math.min((sw*0.90)/projW, (freeH*0.86)/projH)));
+  // vertical centring in the free region (between band and dock)
+  const ppu=sh/(2*TLCAMD*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)));
   tlGroup.rotation.y=ry0;
-  tlGroup.position.set(0, 0.4 - downPx/ppu - ctr.y*tlFitScale, 0);
-  tlGroup.scale.setScalar(sc0);                                        // tlAnimate applies tlFitScale next frame
+  tlGroup.position.set(0, 0.4 - ((bandH-dockH)/2)/ppu - ctr.y*tlFitScale, 0);
+  tlGroup.scale.setScalar(sc0); // tlAnimate applies tlFitScale next frame
 }
 // "what else was happening" cultural context, keyed by year (per-entry e.ctx overrides)
 const CTX={
