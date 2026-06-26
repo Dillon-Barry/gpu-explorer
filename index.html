@@ -2353,8 +2353,12 @@ function buildEraModel(e){
   }
   tlAdd(cooler,new THREE.Vector3(0,0,1.7));
   tlGroup.userData.cooler=cooler;
-  tlGroup.position.set(0,0.4,0);
+  // cache the model's raw bounding box (scale 1, no rotation, at the display anchor) for the fit
+  tlGroup.position.set(0,0.4,0); tlGroup.scale.set(1,1,1); tlGroup.rotation.y=0; tlGroup.updateMatrixWorld(true);
+  tlRawBox=new THREE.Box3().setFromObject(tlGroup);
   enableShadows(tlGroup);
+  fitTimeline();                               // position correctly immediately
+  tlGroup.scale.setScalar(tlFitScale*0.6);     // start the intro at fit-relative size (no big-flash frame)
   tlIntro=0;
 }
 
@@ -2434,38 +2438,31 @@ function centerStrip(anim){ const card=stripInner.children[tlIdx]; if(!card) ret
   stripInner.style.transform='translateX('+tx+'px)';
   if(!anim) stripInner.offsetHeight, stripInner.style.transition=''; }
 function lastGpuUpTo(idx){ let g=null; for(let i=0;i<=idx;i++){ if(TIMELINE[i].gpu) g=TIMELINE[i]; } return g; }
-// Responsively scale + centre the timeline card so it always fits the free space
-// (between the top history band and the bottom dock) at any resolution / aspect.
-let tlFitScale=1;
+// Continuously scale + centre the timeline card so it ALWAYS fits the free space
+// (between the top band and the bottom dock) on any browser / device / orientation.
+// Runs every frame from a cached bounding box (cheap) so it never depends on layout timing.
+let tlFitScale=1, tlRawBox=null, tlFitLastSh=-1;
 const TLCAM=new THREE.Vector3(3.2,2.4,10.5), TLTGT=new THREE.Vector3(0,0.4,0);
 const TLCAMD=TLCAM.distanceTo(TLTGT);
+const _fitCam=new THREE.PerspectiveCamera(45,1,0.1,1000); _fitCam.position.copy(TLCAM); _fitCam.up.set(0,1,0); _fitCam.lookAt(TLTGT);
+const _fitV=new THREE.Vector3();
 function fitTimeline(){
-  if(!tlGroup.visible) return;
+  if(!tlGroup.visible || !tlRawBox) return;
   const sw=stage.clientWidth, sh=stage.clientHeight; if(sw<4||sh<4) return;
-  const bandH=(document.getElementById('tlInfo')||{}).offsetHeight||0;
-  const dockH=(document.getElementById('tlbar')||{}).offsetHeight||0;
-  const freeH=Math.max(120, sh-bandH-dockH);
-  // measure the model at scale 1, no rotation, placed at the display anchor
-  const sc0=tlGroup.scale.x, ry0=tlGroup.rotation.y;
-  tlGroup.scale.set(1,1,1); tlGroup.rotation.y=0; tlGroup.position.set(0,0.4,0); tlGroup.updateMatrixWorld(true);
-  const box=new THREE.Box3().setFromObject(tlGroup), ctr=box.getCenter(new THREE.Vector3());
-  // a camera locked to the timeline angle (independent of any in-progress fly/orbit)
-  const cam=camera.clone(); cam.position.copy(TLCAM); cam.up.set(0,1,0); cam.lookAt(TLTGT);
-  cam.aspect=sw/sh; cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
-  // project the 8 bbox corners to screen pixels → exact on-screen footprint (handles perspective)
-  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9; const v=new THREE.Vector3();
-  for(let i=0;i<8;i++){
-    v.set(i&1?box.max.x:box.min.x, i&2?box.max.y:box.min.y, i&4?box.max.z:box.min.z).project(cam);
-    const px=(v.x*0.5+0.5)*sw, py=(-v.y*0.5+0.5)*sh;
-    if(px<minX)minX=px; if(px>maxX)maxX=px; if(py<minY)minY=py; if(py>maxY)maxY=py;
-  }
-  const projW=Math.max(1,maxX-minX)*1.12, projH=Math.max(1,maxY-minY); // *1.12 headroom for the gentle rotation
-  tlFitScale=Math.max(0.3, Math.min(2.6, Math.min((sw*0.90)/projW, (freeH*0.86)/projH)));
-  // vertical centring in the free region (between band and dock)
+  const info=document.getElementById('tlInfo'), dockEl=document.getElementById('tlbar');
+  if(info && sh!==tlFitLastSh){ info.style.maxHeight=Math.round(sh*0.44)+'px'; tlFitLastSh=sh; } // px cap (no iOS vh quirks)
+  const bandH=info?info.offsetHeight:0, dockH=dockEl?dockEl.offsetHeight:0;
+  const freeH=Math.max(100, sh-bandH-dockH);
+  _fitCam.fov=camera.fov; _fitCam.aspect=sw/sh; _fitCam.updateProjectionMatrix(); _fitCam.updateMatrixWorld(true);
+  const b=tlRawBox; let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  for(let i=0;i<8;i++){ _fitV.set(i&1?b.max.x:b.min.x,i&2?b.max.y:b.min.y,i&4?b.max.z:b.min.z).project(_fitCam);
+    const px=(_fitV.x*0.5+0.5)*sw, py=(-_fitV.y*0.5+0.5)*sh;
+    if(px<mnx)mnx=px; if(px>mxx)mxx=px; if(py<mny)mny=py; if(py>mxy)mxy=py; }
+  const projW=Math.max(1,mxx-mnx)*1.12, projH=Math.max(1,mxy-mny);
+  tlFitScale=Math.max(0.3, Math.min(2.6, Math.min((sw*0.92)/projW, (freeH*0.9)/projH)));
+  const ctrY=(b.min.y+b.max.y)/2;
   const ppu=sh/(2*TLCAMD*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)));
-  tlGroup.rotation.y=ry0;
-  tlGroup.position.set(0, 0.4 - ((bandH-dockH)/2)/ppu - ctr.y*tlFitScale, 0);
-  tlGroup.scale.setScalar(sc0); // tlAnimate applies tlFitScale next frame
+  tlGroup.position.set(0, 0.4 - ((bandH-dockH)/2)/ppu - (ctrY-0.4)*tlFitScale, 0);
 }
 // "what else was happening" cultural context, keyed by year (per-entry e.ctx overrides)
 const CTX={
@@ -2637,6 +2634,7 @@ document.getElementById('modeSwitch').addEventListener('click',e=>{ const b=e.ta
 
 function tlAnimate(dt,now){
   if(tlPlaying){ tlPlayT+=dt; if(tlPlayT>=1.15){ tlPlayT=0; if(tlIdx>=TIMELINE.length-1){ tlPlaying=false; tlPlayBtnLabel(); } else tlStepVisible(1); } }
+  fitTimeline();   // continuously keep the card centred + scaled to the current window (every browser/device)
   tlExpl.forEach(o=> o.obj.position.lerp(o.base.clone().add(o.dir.clone().multiplyScalar(tlExplodeAmt)),0.15));
   if(tlIntro<1) tlIntro=Math.min(1,tlIntro+dt*3);
   const ie=0.62+0.38*(1-Math.pow(1-tlIntro,3));
